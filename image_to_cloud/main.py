@@ -11,11 +11,12 @@ import numpy as np
 import argparse
 import open3d as o3d
 import os
+from open3d.geometry import KDTreeSearchParamHybrid
 
 
-#-----------------------------
+#------------------------------------
 # Layout Configurations
-#-----------------------------
+#------------------------------------
 def onLayout(window, controlPanel, viewport, ctx):
 
     # Rectangle size
@@ -24,6 +25,22 @@ def onLayout(window, controlPanel, viewport, ctx):
     # Layout and scene frame
     controlPanel.frame = o3d.visualization.gui.Rect(rectangleSize.width - 210, 20, 210, rectangleSize.height - 80)
     viewport.frame = o3d.visualization.gui.Rect(rectangleSize.x, rectangleSize.y, rectangleSize.width, rectangleSize.height)
+
+#-----------------------------
+# Paint Point Clouds Configurations
+#-----------------------------
+def onColorChange(viewport, newColor, idx):
+
+    # For transformed cloud
+    cloudName = f"cloud_{idx}"
+
+    # Create new color for the material
+    material = o3d.visualization.rendering.MaterialRecord()
+    material.shader = "defaultUnlit"
+    material.base_color = (newColor.red, newColor.green, newColor.blue, 1.0)
+
+    # Update material in viewport
+    viewport.scene.modify_geometry_material(cloudName, material)
 
 #-----------------------------
 # Viewport Configuration
@@ -40,12 +57,21 @@ def viewportConfiguration(window, pointClouds):
         viewport.scene.add_geometry(f"cloud_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_{idx}", False)  # Hide 
 
+    # Setup camera to start with a good viewpoint 
+    if pointClouds:
+        bounds = pointClouds[0].get_axis_aligned_bounding_box()
+        for pointCloud in pointClouds[1:]:
+                bounds += pointCloud.get_axis_aligned_bounding_box()
+                viewport.setup_camera(60, bounds, bounds.get_center())
+
+        viewport.background_color = o3d.visualization.gui.Color(1, 1, 1)
+
     return viewport
 
 #-----------------------------
 # Checkbox Configurations
 #-----------------------------
-def onCheckboxShowOriginalToggled(isChecked, viewport, idx):
+def onCheckboxShowOriginalToggled(viewport, idx, isChecked):
 
     cloudName = f"cloud_{idx}"
 
@@ -73,33 +99,13 @@ def controlPanelConfiguration(window, pointClouds, viewport):
         colorPicker = o3d.visualization.gui.ColorEdit()
 
         checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
-        #colorPicker.set_on_value_changed(partial(onColorChange, idx = idx))
+        colorPicker.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
 
         controlPanel.add_child(label)
         controlPanel.add_child(checkboxShowOriginal)
         controlPanel.add_child(colorPicker)
 
     return controlPanel
-
-view = {
-    "class_name": "ViewTrajectory",
-    "interval": 29,
-    "is_loop": False,
-    "trajectory":
-        [
-            {
-                "boundingbox_max": [10.0, 34.024543762207031, 11.225864410400391],
-                "boundingbox_min": [-39.714397430419922, -16.512752532958984, -1.9472264051437378],
-                "field_of_view": 60.0,
-                "front": [0.87911045824568079, -0.1143707949631662, 0.46269225567601935],
-                "lookat": [-14.857198715209961, 8.7558956146240234, 4.6393190026283264],
-                "up": [-0.45122740480118839, 0.11291073802962912, 0.88523725316662361],
-                "zoom": 0.53999999999999981
-            }
-        ],
-    "version_major": 1,
-    "version_minor": 0
-}
 
 
 def main():
@@ -114,6 +120,7 @@ def main():
         help="Folder where the rgb images are.)")
     parser.add_argument('-outpcd', "--outputPointClouds", default='cloud', type=str,
         help="Folder where the rgb images are.)")
+    
     
     args = vars(parser.parse_args())
 
@@ -166,20 +173,25 @@ def main():
         rgbd, o3d.camera.PinholeCameraIntrinsic(
             o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)))
         
+    # ----------------------------------
+    # Downsample and Estimate Normals
+    # ----------------------------------
+    pointCloudsDownsampled =[]
+    for pointCloud in pointClouds:
+        pointCloudsDownsampled.append(downsampleAndEstimateNormals(pointCloud, args))
+        print(f"PointCloud Downsampled with VoxelSize: {args['voxelSize']}")
+        
     # ------------------------------------
-    # Write the point cloud
+    # Write the point cloud Downsampled
     # ------------------------------------   
-    for i, pcd in enumerate(pointClouds):
-        filename = os.path.join(args['outputPointClouds'], f"cloud_{i:02d}.ply")
+    for i, pcd in enumerate(pointCloudsDownsampled):
+        filename = os.path.join(args['outputPointClouds'], f"cloud_{i:02d}.pcd")
         o3d.io.write_point_cloud(filename, pcd)
         print(f"Saved: {filename}")
 
     # ------------------------------------
     # Visualize the point cloud
     # ------------------------------------   
-
-    axes_mesh = o3d.geometry.TriangleMesh().create_coordinate_frame(size=0.5)
-
     # App inicialization
     application = o3d.visualization.gui.Application.instance
     application.initialize()
@@ -187,10 +199,11 @@ def main():
     # Create window
     window = application.create_window("GUI", 1280, 800)
 
-    viewport = viewportConfiguration(window, pointClouds)
+    # Create Viewport
+    viewport = viewportConfiguration(window, pointCloudsDownsampled)
 
-    controlPanel = controlPanelConfiguration(window, pointClouds, viewport)
-
+    # Create Control Panel
+    controlPanel = controlPanelConfiguration(window, pointCloudsDownsampled, viewport)
 
     # Update new Scene and Layout
     window.add_child(viewport)
@@ -198,6 +211,9 @@ def main():
 
     # Handles viewport + control panel positioning
     window.set_on_layout(partial(onLayout, window, controlPanel, viewport))
+
+    opt = window.get_render_option()
+    opt.point_show_normal = True
 
     # Run the app
     application.run()
