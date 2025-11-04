@@ -11,7 +11,7 @@ import numpy as np
 import argparse
 import open3d as o3d
 import os
-from open3d.geometry import KDTreeSearchParamHybrid
+
 
 
 #------------------------------------
