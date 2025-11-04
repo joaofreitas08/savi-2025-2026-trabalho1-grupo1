@@ -259,147 +259,9 @@ def main():
             # Global Registration procedure 
             globalRegistrationTransformation = calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, pointCloudDownsampled,  args)
             print(f"[RANSAC] [{listText}] -- {idx} done")
-            
-            # ICP Registration procedure 
-             # Run ICP
-            
-            errors = []
-            verbose = True
-            tolerance = 1e-6
 
-            sourcePoints = np.asarray(pointCloud.points)
-            targetPoints = np.asarray(accumulatedPointCloud.points)
-
-            currentTransform = copy.deepcopy(globalRegistrationTransformation.transformation)
-
-
-            kdtree = o3d.geometry.KDTreeFlann(accumulatedPointCloud)
-
-            maxIterations = 20
-
-            def transformPoints(points, transform):
-                """
-                Apply a 4x4 transformation matrix to Nx3 points.
-                points: (N, 3)
-                transform: (4, 4)
-                """
-                # Convert points to homogeneous coordinates (add 1 column)
-                pointsHomogeneous = np.hstack((points, np.ones((points.shape[0], 1))))  # (N, 4)
-
-                # Multiply: (4x4) @ (4xN) -> (4xN)
-                transformedHom = (transform @ pointsHomogeneous.T).T  # transpose back to (N, 4)
-
-                # Drop the homogeneous coordinate
-                return transformedHom[:, :3]
-            
-            for i in range(maxIterations):
-                # 1. Apply current transform to source
-                transformedSource = transformPoints(sourcePoints, currentTransform)
-
-            # 2. Find correspondences
-            correspondences = []
-            for p in transformedSource:
-                _, idx, _ = kdtree.search_knn_vector_3d(p, 1)
-                correspondences.append(idx[0])
-            correspondences = np.array(correspondences)
-
-            def smallTransform(params):
-                """
-                Convert 6 small motion parameters [rx, ry, rz, tx, ty, tz]
-                into a 4x4 transformation matrix.
-                Rotations are in radians, translations in same units as your point clouds.
-                """
-                rx, ry, rz, tx, ty, tz = params  # unpack parameters
-
-                # Rotation matrices around X, Y, Z axes
-                Rx = np.array([
-                    [1, 0, 0],
-                    [0, np.cos(rx), -np.sin(rx)],
-                    [0, np.sin(rx),  np.cos(rx)]
-                ])
-                Ry = np.array([
-                    [ np.cos(ry), 0, np.sin(ry)],
-                    [0, 1, 0],
-                    [-np.sin(ry), 0, np.cos(ry)]
-                ])
-                Rz = np.array([
-                    [np.cos(rz), -np.sin(rz), 0],
-                    [np.sin(rz),  np.cos(rz), 0],
-                    [0, 0, 1]
-                ])
-
-                # Combined rotation (Z-Y-X order)
-                R = Rz @ Ry @ Rx
-
-                # Build homogeneous 4x4 matrix
-                T = np.eye(4)
-                T[:3, :3] = R
-                T[:3, 3] = [tx, ty, tz]
-
-                return T
-
-
-            def residual(params, sourcePoints, targetPoints, correspondences, currentTransform):
-                """
-                Compute residuals (differences) between transformed source points
-                and their corresponding target points.
-
-                params: [rx, ry, rz, tx, ty, tz]  # small correction
-                sourcePoints: Nx3 numpy array
-                targetPoints: Mx3 numpy array
-                correspondences: indices of nearest target point for each source
-                currentTransform: 4x4 numpy array (the current transformation)
-                """
-                # 1. Build a small transformation from params
-                deltaT = smallTransform(params)
-
-                # 2. Combine it with the current transformation
-                T = deltaT @ currentTransform
-
-                # 3. Apply the combined transform to source points
-                transformedSource = transformPoints(sourcePoints, T)
-
-                # 4. Compute point-to-point residuals
-                residuals = transformedSource - targetPoints[correspondences]
-
-                # 5. Flatten the residuals (least_squares expects a 1D vector)
-                return residuals.ravel()
-
-
-            def costFunc(params):
-                return residual(params, sourcePoints, targetPoints, correspondences, currentTransform)
-
-            
-
-
-            result = least_squares(costFunc, np.zeros(6), verbose=0)
-            print(least_squares)
-            deltaT = smallTransform(result.x)
-
-            # 4. Update full transformation
-            currentTransform = deltaT @ currentTransform
-
-            # 5. Compute error
-            error = np.mean(result.fun ** 2)
-            errors.append(error)
-
-            if verbose:
-                print(f"Iteration {i+1:02d}: error = {error:.6f}")
-
-            # 6. Convergence check
-            if np.linalg.norm(result.x) < tolerance:
-                if verbose:
-                    print(f"Converged at iteration {i+1}")
-                break
-
-            finalTransform =copy.deepcopy(currentTransform)
-            
-
-            
-
-    
-
-            estimatedTransformation = finalTransform
+            customICP = CustomICP()
+            estimatedTransformation, fitness, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
 
             
         # -----------------------------------------
@@ -429,8 +291,8 @@ def main():
             registeredValues = [
                 f"{globalRegistrationTransformation.fitness:.4f}",
                 f"{globalRegistrationTransformation.inlier_rmse:.4f}",
-                # f"{icpRegistrationTransformation.fitness:.4f}",
-                # f"{icpRegistrationTransformation.inlier_rmse:.4f}"
+                f"{fitness:.4f}",
+                f"{rmse:.4f}"
             ]
             
             # Save the values in a dictionary
@@ -443,10 +305,10 @@ def main():
     # -----------------------------------------
     # Table for debug print
     # -----------------------------------------
-    # print(f"{'Point Clouds':<25} | {'RANSAC Fit':<16} | {'RANSAC RMSE':<16} | {'ICP Fit':<16} | {'ICP_RMSE':<16}")
-    # print("-" * 93)
-    # for key, values in registeredTable.items():
-    #     print(f"{key:<25} | {values[0]:<16} | {values[1]:<16} | {values[2]:<16} | {values[3]:<16}")
+    print(f"{'Point Clouds':<25} | {'RANSAC Fit':<16} | {'RANSAC RMSE':<16} | {'ICP Fit':<16} | {'ICP_RMSE':<16}")
+    print("-" * 93)
+    for key, values in registeredTable.items():
+        print(f"{key:<25} | {values[0]:<16} | {values[1]:<16} | {values[2]:<16} | {values[3]:<16}")
 
     # ------------------------------------
     # Write the point cloud
@@ -458,7 +320,6 @@ def main():
     # ------------------------------------
     # Visualize the point cloud
     # ------------------------------------   
-
     # App inicialization
     application = o3d.visualization.gui.Application.instance
     application.initialize()

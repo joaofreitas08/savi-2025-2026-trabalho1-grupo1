@@ -173,18 +173,10 @@ def main():
         rgbd, o3d.camera.PinholeCameraIntrinsic(
             o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)))
         
-    # ----------------------------------
-    # Downsample and Estimate Normals
-    # ----------------------------------
-    pointCloudsDownsampled =[]
-    for pointCloud in pointClouds:
-        pointCloudsDownsampled.append(downsampleAndEstimateNormals(pointCloud, args))
-        print(f"PointCloud Downsampled with VoxelSize: {args['voxelSize']}")
-        
     # ------------------------------------
     # Write the point cloud Downsampled
     # ------------------------------------   
-    for i, pcd in enumerate(pointCloudsDownsampled):
+    for i, pcd in enumerate(pointClouds):
         filename = os.path.join(args['outputPointClouds'], f"cloud_{i:02d}.pcd")
         o3d.io.write_point_cloud(filename, pcd)
         print(f"Saved: {filename}")
@@ -200,10 +192,10 @@ def main():
     window = application.create_window("GUI", 1280, 800)
 
     # Create Viewport
-    viewport = viewportConfiguration(window, pointCloudsDownsampled)
+    viewport = viewportConfiguration(window, pointClouds)
 
     # Create Control Panel
-    controlPanel = controlPanelConfiguration(window, pointCloudsDownsampled, viewport)
+    controlPanel = controlPanelConfiguration(window, pointClouds, viewport)
 
     # Update new Scene and Layout
     window.add_child(viewport)
