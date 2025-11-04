@@ -161,7 +161,7 @@ def downsampleAndEstimateNormals(pointCloud, args):
 #--------------------------
 def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, pointCloudDownsampled, args):
 
-    ransacDistanceThreshold = args['voxelSize'] * 1.5
+    ransacDistanceThreshold = args['voxelSize'] * 3
     radiusFeature = args['voxelSize'] * 5
 
     #Compute features
@@ -190,12 +190,12 @@ def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, 
 # ICP PCs
 #--------------------------
 def calculateICPTransformation(pointCloud, accumulatedPointCloud, globalRegistrationTransformation, args):
-    distanceThreshold = args['voxelSize'] * 0.5
+    distanceThreshold = args['voxelSize'] * 1.5
     radiusNormal = args['voxelSize'] * 2
 
     # Compute normals
-    pointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30)) # type: ignore
-    accumulatedPointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30)) # type: ignore
+    pointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=50)) # type: ignore
+    accumulatedPointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=50)) # type: ignore
 
     # run icp
     icpRegistrationTransformation = o3d.pipelines.registration.registration_icp(
@@ -216,7 +216,7 @@ def main():
         help="Folder where the pointclouds images are.)")
     parser.add_argument('-outpcd', "--outputPointClouds", default='cloud_registered', type=str,
         help="Folder where the rgb images are.)")
-    parser.add_argument('-voxS', "--voxelSize", default= 0.05, type=float,
+    parser.add_argument('-voxS', "--voxelSize", default= 0.04, type=float,
         help="Voxel Size.)")
     
     args = vars(parser.parse_args())
@@ -292,6 +292,12 @@ def main():
         # Post merge downlsampling
         accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
         
+        accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
+
+        if not accumulatedPointCloudDownsampled.has_normals():
+            radiusNormal = args['voxelSize'] * 4
+            accumulatedPointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
+
         # -----------------------------------------
         # Update dictionary registeredTable and print Accumulated PC Points
         # -----------------------------------------
