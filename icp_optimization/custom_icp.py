@@ -15,9 +15,8 @@ class CustomICP:
         self.tolerance = tolerance           # convergence threshold
         self.verbose = verbose               # print debug info if True
         self.finalTransform = np.eye(4)      # final 4x4 transformation matrix
-        self.errors = [] 
         self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 1.5                 # store per-iteration mean squared error
+        self.distanceThreshold = self.voxelSize * 1.5             
 
     # -----------------------------------------
     # Apply a 4x4 transformation matrix to Nx3 points
@@ -82,10 +81,42 @@ class CustomICP:
         """
         kdtree = o3d.geometry.KDTreeFlann(targetCloud)
         correspondences = []
-        for p in transformedSource:
-            _, idx, _ = kdtree.search_knn_vector_3d(p, 1)
-            correspondences.append(idx[0])  #create a correspondences index
+        for point in transformedSource:
+            _, idx, _ = kdtree.search_knn_vector_3d(point, 1) # 1 = only closer point
+            correspondences.append(idx[0])  #create a correspondences index (0) its the closer
         return np.array(correspondences)
+    
+
+    # -----------------------------------------
+    # Filter correspondences by distance threshold
+    # -----------------------------------------
+    def applyDistanceThresholdToCorrespondences(self, sourcePoints, targetPoints, transformedSource, targetCorrespondences):
+        # Compute distances between matched points
+        matchedTargetPoints = targetPoints[targetCorrespondences]
+        differences = transformedSource - matchedTargetPoints
+        distances = np.linalg.norm(differences, axis=1)
+
+        # Keep only pairs closer than threshold 
+        inliers = distances < self.distanceThreshold
+
+        # Filter everything by that mask
+        filteredSourcePoints = sourcePoints[inliers]
+        filteredTargetCorrespondences = targetCorrespondences[inliers]
+
+        fitness = np.sum(inliers) / len(sourcePoints)
+
+        return filteredSourcePoints, filteredTargetCorrespondences, fitness
+    
+
+    # -----------------------------------------
+    # Define cost function for least-squares optimization
+    # -----------------------------------------
+    def costFunction(self, parameters, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation):
+        #Transform the rx ry... in matriz deltaTransformation
+        deltaTransformation = self.smallTransform(parameters)
+        # Compute residual result
+        residualResult = self.computeResiduals(deltaTransformation, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation)
+        return residualResult
 
     # -----------------------------------------
     # Compute residuals between matched source and target points
@@ -107,34 +138,6 @@ class CustomICP:
         # Flatten residuals into 1D vector (required by least_squares)
         return residuals.ravel()
     
-    # --- Filter correspondences by distance threshold ---
-    def applyDistanceThresholdToCorrespondences(self, sourcePoints, targetPoints, transformedSource, targetCorrespondences):
-        # Compute distances between matched points
-        matchedTargetPoints = targetPoints[targetCorrespondences]
-        differences = transformedSource - matchedTargetPoints
-        distances = np.linalg.norm(differences, axis=1)
-
-        # Keep only pairs closer than threshold (e.g., 2 cm)
-        inliers = distances < self.distanceThreshold
-
-        # Filter everything by that mask
-        filteredSourcePoints = sourcePoints[inliers]
-        filteredTargetCorrespondences = targetCorrespondences[inliers]
-
-        fitness = np.sum(inliers) / len(sourcePoints)
-
-        return filteredSourcePoints, filteredTargetCorrespondences, fitness
-    
-    # -----------------------------------------
-    # Define cost function for least-squares optimization
-    # -----------------------------------------
-    def costFunction(self, parameters, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation):
-        #Transform the rx ry... in matriz deltaTransformation
-        deltaTransformation = self.smallTransform(parameters)
-        # Compute residual result
-        residualResult = self.computeResiduals(deltaTransformation, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation)
-        return residualResult
-
 
     # -----------------------------------------
     # Main ICP optimization loop
@@ -189,7 +192,6 @@ class CustomICP:
             # Compute mean squared error
             # -----------------------------------------
             rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2)) # Mean Squared Error (MSE)/ .fun obtain the value of difference between coresponding values
-            self.errors.append(rootMeanSquaredError)
 
             if self.verbose:
                 print(f"Iteration {i+1:02d}: error = {rootMeanSquaredError:.6f}")
