@@ -3,6 +3,7 @@ import open3d as o3d
 from scipy.optimize import least_squares
 import copy
 from functools import partial
+from scipy.spatial.transform import Rotation as R
 
 class CustomICP:
     """Simplified Point-to-Point ICP implementation using SciPy least_squares."""
@@ -16,16 +17,13 @@ class CustomICP:
         self.verbose = verbose               # print debug info if True
         self.finalTransform = np.eye(4)      # final 4x4 transformation matrix
         self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 1.5             
+        self.distanceThreshold = self.voxelSize * 10   #1.5            
 
     # -----------------------------------------
     # Apply a 4x4 transformation matrix to Nx3 points
     # -----------------------------------------
     @staticmethod
     def transformPoints(points, transform):
-        """
-        Applies a 4x4 homogeneous transformation to 3D points.
-        """
         # Convert points to homogeneous coordinates (N,4)
         pointsHomogeneous = np.hstack((points, np.ones((points.shape[0], 1))))
         # Apply the transformation (4x4) * (4xN) -> (4xN)
@@ -38,10 +36,6 @@ class CustomICP:
     # -----------------------------------------
     @staticmethod
     def smallTransform(parameters):
-        """
-        Convert 6 motion parameters [rx, ry, rz, tx, ty, tz]
-        into a 4x4 homogeneous transformation matrix.
-        """
         rX, rY, rZ, tX, tY, tZ = parameters  # unpack rotation + translation
 
         # Rotation matrices around each axis
@@ -74,66 +68,81 @@ class CustomICP:
     # -----------------------------------------
     # Find nearest-neighbor correspondences using a KDTree
     # -----------------------------------------
-    def findCorrespondences(self, transformedSource, targetCloud):
-        """
-        Build a KDTree from the target cloud and find, for each transformed source point,
-        the index of its nearest target point.
-        """
+    def findCorrespondences(self, sourceCloud, targetCloud):
+        # Build kdtree from target cloud
         kdtree = o3d.geometry.KDTreeFlann(targetCloud)
-        correspondences = []
-        for point in transformedSource:
+
+        #Create a list of correspondences
+        sourceToTargetCorrespondencesIndex = []
+
+        for point in sourceCloud:
             _, idx, _ = kdtree.search_knn_vector_3d(point, 1) # 1 = only closer point
-            correspondences.append(idx[0])  #create a correspondences index (0) its the closer
-        return np.array(correspondences)
+            sourceToTargetCorrespondencesIndex.append(idx[0])  #create a correspondences index (0). what point its the closest
+
+        return np.array(sourceToTargetCorrespondencesIndex)
     
 
     # -----------------------------------------
     # Filter correspondences by distance threshold
     # -----------------------------------------
-    def applyDistanceThresholdToCorrespondences(self, sourcePoints, targetPoints, transformedSource, targetCorrespondences):
+    def applyDistanceThresholdToCorrespondences(self, distances):
         # Compute distances between matched points
-        matchedTargetPoints = targetPoints[targetCorrespondences]
-        differences = transformedSource - matchedTargetPoints
-        distances = np.linalg.norm(differences, axis=1)
-
+        inliers = []
+        for distance in distances: #pointClouds in what
         # Keep only pairs closer than threshold 
-        inliers = distances < self.distanceThreshold
+            if distance < self.distanceThreshold:
+                inliers.append([1])
+            else:
+                inliers.append([0])
 
-        # Filter everything by that mask
-        filteredSourcePoints = sourcePoints[inliers]
-        filteredTargetCorrespondences = targetCorrespondences[inliers]
+        inliersNp = np.array(inliers)
+        #print(inliersNp)
+        
+        #Transform in np array
+        filteredDistances = []
+        for distance, inlier in zip(distances, inliersNp):
+            # Filter everything by that mask
+            filteredDistances.append(distance * inlier)
 
-        fitness = np.sum(inliers) / len(sourcePoints)
+           #fitness = np.sum(inliers) / len(sourcePoints)
+        return np.array(filteredDistances)
+    
+    def getFromTransformedSourceCloudParameters(self, transformedSourceCloud):
 
-        return filteredSourcePoints, filteredTargetCorrespondences, fitness
+        rotationMatrix = transformedSourceCloud[:3, :3]
+        translationVector = transformedSourceCloud[:3, 3]
+
+        rotation = R.from_matrix(rotationMatrix)
+        rx, ry, rz = rotation.as_euler('xyz', degrees=False)
+
+        parameters = np.hstack([rx, ry, rz, translationVector])
+
+        return parameters
     
 
     # -----------------------------------------
     # Define cost function for least-squares optimization
     # -----------------------------------------
-    def costFunction(self, parameters, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation):
+    def costFunction(self, parameters, filteredSourcePoints, filteredMatchedTargetPoints):
         #Transform the rx ry... in matriz deltaTransformation
         deltaTransformation = self.smallTransform(parameters)
+        print(deltaTransformation)
+        #print(deltaTransformation)
         # Compute residual result
-        residualResult = self.computeResiduals(deltaTransformation, filteredSourcePoints, targetPoints, filteredTargetCorrespondences, currentTransformation)
+        residualResult = self.computeResiduals(deltaTransformation, filteredSourcePoints, filteredMatchedTargetPoints)
         return residualResult
 
     # -----------------------------------------
     # Compute residuals between matched source and target points
     # -----------------------------------------
-    def computeResiduals(self, deltaTransformation, sourcePoints, targetPoints, correspondences, currentTransform):
-        """
-        Compute residuals (differences) between transformed source points
-        and their corresponding target points.
-        Used by least_squares() as the cost function to minimize.
-        """
-        newTransformation = deltaTransformation @ currentTransform
+    def computeResiduals(self, deltaTransformation, filteredSourcePoints, filteredMatchedTargetPoints):
+
 
         # Transform source points using the combined transformation
-        transformedSourcePoints = self.transformPoints(sourcePoints, newTransformation)
+        transformedSourcePoints = self.transformPoints(filteredSourcePoints, deltaTransformation)
 
         # Compute vector residuals between corresponding points
-        residuals = transformedSourcePoints - targetPoints[correspondences]
+        residuals = transformedSourcePoints - filteredMatchedTargetPoints
 
         # Flatten residuals into 1D vector (required by least_squares)
         return residuals.ravel()
@@ -143,31 +152,62 @@ class CustomICP:
     # Main ICP optimization loop
     # -----------------------------------------
     def run(self, sourceCloud, targetCloud, globalRegistrationTransformation):
-        # Convert point clouds to numpy arrays
+
         sourcePoints = np.asarray(sourceCloud.points)
         targetPoints = np.asarray(targetCloud.points)
-
         # Deep copy of initial transformation (from global registration)
         currentTransformation = copy.deepcopy(globalRegistrationTransformation.transformation)
-
+        
+        
         # ICP iterative optimization
         for i in range(self.maxIterations):
             # Transform source using current estimate
-            transformedSource = self.transformPoints(sourcePoints, currentTransformation)
+            transformedSourceCloud = self.transformPoints(sourcePoints, currentTransformation) #Nx3
+
+
+            parameters = self.getFromTransformedSourceCloudParameters(currentTransformation)
+
+            
+
 
             # Find nearest-neighbor correspondences
-            targetCorrespondences = self.findCorrespondences(transformedSource, targetCloud)
+            sourceToTargetCorrespondencesIndex = self.findCorrespondences(transformedSourceCloud, targetCloud)
 
-            # Apply dinstace threshold
-            filteredSourcePoints, filteredTargetCorrespondences, fitness = self.applyDistanceThresholdToCorrespondences(sourcePoints, targetPoints, transformedSource, targetCorrespondences)
+            #print(sourceToTargetCorrespondencesIndex)
+
+            #Calculate distances
+            matchedTargetPoints = []
+            for idx in sourceToTargetCorrespondencesIndex:
+                matchedTargetPoints.append(targetPoints[idx])
+
+            #print(matchedTargetPoints)
+
+            matchedTargetPoints = np.array(matchedTargetPoints)
+            differences = transformedSourceCloud - matchedTargetPoints
+            distances = np.linalg.norm(differences, axis=1)
+
             
+
+            # Apply distancece threshold
+            filteredDistances = self.applyDistanceThresholdToCorrespondences(distances)
+            #print (filteredDistances)
+            
+            filteredMatchedTargetPoints = matchedTargetPoints * filteredDistances
+            filteredSourcePoints = transformedSourceCloud * filteredDistances
+           
+            #print(filteredMatchedTargetPoints)
+
+            #filteredMatchedTargetPointsHomogeneous = np.hstack([filteredMatchedTargetPoints, np.ones((filteredMatchedTargetPoints.shape[0], 1))])
+
+            #print(filteredMatchedTargetPointsHomogeneous)
+
+
+
             #Define the costFunction
             costFunction = partial(
                 self.costFunction,
                 filteredSourcePoints=filteredSourcePoints,
-                targetPoints=targetPoints,
-                filteredTargetCorrespondences=filteredTargetCorrespondences,
-                currentTransformation=currentTransformation
+                filteredMatchedTargetPoints=filteredMatchedTargetPoints,
             )
 
             # Apply least Squares with cost function and parameters (rx,ry,rz,tx,ty,tz)
@@ -185,7 +225,11 @@ class CustomICP:
             # -----------------------------------------
             # Update current transformation
             # -----------------------------------------
-            currentTransformation = resultLeastSquaresTransformation @ currentTransformation
+            currentTransformation = resultLeastSquaresTransformation @ currentTransformation 
+
+
+            print(currentTransformation)
+            #print(np.linalg.det(currentTransformation[:3, :3]))
 
             #print(currentTransformation)
             # -----------------------------------------
@@ -213,4 +257,4 @@ class CustomICP:
         # -----------------------------------------
         # Return the final 4x4 transformation matrix
         # -----------------------------------------
-        return self.finalTransform, fitness , rootMeanSquaredError
+        return self.finalTransform , rootMeanSquaredError

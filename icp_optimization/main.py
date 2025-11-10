@@ -305,7 +305,7 @@ def main():
             tolerance=1e-4
 
             customICP = CustomICP(maxIterations, tolerance)
-            estimatedTransformation, fitness, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
+            estimatedTransformation, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
 
         
         # -----------------------------------------
@@ -344,7 +344,6 @@ def main():
             registeredValues = [
                 f"{globalRegistrationTransformation.fitness:.4f}",
                 f"{globalRegistrationTransformation.inlier_rmse:.4f}",
-                f"{fitness:.4f}",
                 f"{rmse:.4f}"
             ]
             
@@ -358,10 +357,10 @@ def main():
     # -----------------------------------------
     # Table for debug print
     # -----------------------------------------
-    print(f"{'Point Clouds':<25} | {'RANSAC Fit':<16} | {'RANSAC RMSE':<16} | {'ICP Fit':<16} | {'ICP_RMSE':<16}")
-    print("-" * 93)
+    print(f"{'Point Clouds':<25} | {'RANSAC Fit':<16} | {'RANSAC RMSE':<16} | {'ICP_RMSE':<16}")
+    print("-" * 76)
     for key, values in registeredTable.items():
-        print(f"{key:<25} | {values[0]:<16} | {values[1]:<16} | {values[2]:<16} | {values[3]:<16}")
+        print(f"{key:<25} | {values[0]:<16} | {values[1]:<16} | {values[2]:<16}")
 
     # ------------------------------------
     # Write the point cloud
