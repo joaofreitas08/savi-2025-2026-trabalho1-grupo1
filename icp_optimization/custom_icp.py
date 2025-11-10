@@ -23,11 +23,11 @@ class CustomICP:
     # Apply a 4x4 transformation matrix to Nx3 points
     # -----------------------------------------
     @staticmethod
-    def transformPoints(points, transform):
+    def transformPoints(sourcePoints, transformation):
         # Convert points to homogeneous coordinates (N,4)
-        pointsHomogeneous = np.hstack((points, np.ones((points.shape[0], 1))))
+        pointsHomogeneous = np.hstack((sourcePoints, np.ones((sourcePoints.shape[0], 1))))
         # Apply the transformation (4x4) * (4xN) -> (4xN)
-        transformedHomogeneous = (transform @ pointsHomogeneous.T).T
+        transformedHomogeneous = (transformation @ pointsHomogeneous.T).T
         # Drop homogeneous coordinate and return (N,3)
         return transformedHomogeneous[:, :3]
     
@@ -106,37 +106,14 @@ class CustomICP:
 
            #fitness = np.sum(inliers) / len(sourcePoints)
         return np.array(filteredDistances)
-    
-    def getFromTransformedSourceCloudParameters(self, transformedSourceCloud):
 
-        rotationMatrix = transformedSourceCloud[:3, :3]
-        translationVector = transformedSourceCloud[:3, 3]
-
-        rotation = R.from_matrix(rotationMatrix)
-        rx, ry, rz = rotation.as_euler('xyz', degrees=False)
-
-        parameters = np.hstack([rx, ry, rz, translationVector])
-
-        return parameters
-    
-
-    # -----------------------------------------
-    # Define cost function for least-squares optimization
-    # -----------------------------------------
-    def costFunction(self, parameters, filteredSourcePoints, filteredMatchedTargetPoints):
-        #Transform the rx ry... in matriz deltaTransformation
-        deltaTransformation = self.smallTransform(parameters)
-        print(deltaTransformation)
-        #print(deltaTransformation)
-        # Compute residual result
-        residualResult = self.computeResiduals(deltaTransformation, filteredSourcePoints, filteredMatchedTargetPoints)
-        return residualResult
 
     # -----------------------------------------
     # Compute residuals between matched source and target points
     # -----------------------------------------
-    def computeResiduals(self, deltaTransformation, filteredSourcePoints, filteredMatchedTargetPoints):
-
+    def costFunction(self, parameters, filteredSourcePoints, filteredMatchedTargetPoints):
+        #Transform the rx ry... in matriz deltaTransformation
+        deltaTransformation = self.smallTransform(parameters)
 
         # Transform source points using the combined transformation
         transformedSourcePoints = self.transformPoints(filteredSourcePoints, deltaTransformation)
@@ -152,9 +129,8 @@ class CustomICP:
     # Main ICP optimization loop
     # -----------------------------------------
     def run(self, sourceCloud, targetCloud, globalRegistrationTransformation):
-
         sourcePoints = np.asarray(sourceCloud.points)
-        targetPoints = np.asarray(targetCloud.points)
+        targetPoints = np.asarray(targetCloud.points) #in this case target points dont change
         # Deep copy of initial transformation (from global registration)
         currentTransformation = copy.deepcopy(globalRegistrationTransformation.transformation)
         
@@ -163,18 +139,12 @@ class CustomICP:
         for i in range(self.maxIterations):
             # Transform source using current estimate
             transformedSourceCloud = self.transformPoints(sourcePoints, currentTransformation) #Nx3
-
-
-            parameters = self.getFromTransformedSourceCloudParameters(currentTransformation)
-
             
-
-
             # Find nearest-neighbor correspondences
             sourceToTargetCorrespondencesIndex = self.findCorrespondences(transformedSourceCloud, targetCloud)
 
             #print(sourceToTargetCorrespondencesIndex)
-
+            
             #Calculate distances
             matchedTargetPoints = []
             for idx in sourceToTargetCorrespondencesIndex:
