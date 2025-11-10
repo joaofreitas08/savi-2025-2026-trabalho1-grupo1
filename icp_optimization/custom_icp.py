@@ -165,13 +165,6 @@ class CustomICP:
             filteredMatchedTargetPoints = matchedTargetPoints * filteredDistances
             filteredSourcePoints = transformedSourceCloud * filteredDistances
            
-            #print(filteredMatchedTargetPoints)
-
-            #filteredMatchedTargetPointsHomogeneous = np.hstack([filteredMatchedTargetPoints, np.ones((filteredMatchedTargetPoints.shape[0], 1))])
-
-            #print(filteredMatchedTargetPointsHomogeneous)
-
-
 
             #Define the costFunction
             costFunction = partial(
@@ -179,6 +172,7 @@ class CustomICP:
                 filteredSourcePoints=filteredSourcePoints,
                 filteredMatchedTargetPoints=filteredMatchedTargetPoints,
             )
+
 
             # Apply least Squares with cost function and parameters (rx,ry,rz,tx,ty,tz)
             residualResultLeastSquares = least_squares(
@@ -191,35 +185,26 @@ class CustomICP:
             # Convert result to a 4x4 incremental transformation
             resultLeastSquaresTransformation = self.smallTransform(residualResultLeastSquares.x)  #x vector of optimized parameters
 
-            #print(currentTransformation)
-            # -----------------------------------------
+
             # Update current transformation
-            # -----------------------------------------
             currentTransformation = resultLeastSquaresTransformation @ currentTransformation 
-
-
             print(currentTransformation)
-            #print(np.linalg.det(currentTransformation[:3, :3]))
 
-            #print(currentTransformation)
-            # -----------------------------------------
+
             # Compute mean squared error
-            # -----------------------------------------
             rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2)) # Mean Squared Error (MSE)/ .fun obtain the value of difference between coresponding values
 
             if self.verbose:
                 print(f"Iteration {i+1:02d}: error = {rootMeanSquaredError:.6f}")
 
-            # -----------------------------------------
-            # Check convergence condition
-            # -----------------------------------------
+            # TODO Check convergence condition
             if np.linalg.norm(residualResultLeastSquares.x) < self.tolerance:
                 if self.verbose:
                     print(f"Converged at iteration {i+1}")
                 break
 
         # -----------------------------------------
-        # Copy final transformation and compute fitness
+        # Copy final transformation 
         # -----------------------------------------
         self.finalTransform = copy.deepcopy(currentTransformation)
         
