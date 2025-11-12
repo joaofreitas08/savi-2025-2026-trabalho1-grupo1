@@ -17,7 +17,7 @@ class CustomICP:
         self.tolerance = tolerance                              # convergence threshold
         self.verbose = verbose                                  # print debug info if True
         self.finalTransform = np.eye(4)                         # final 4x4 transformation matrix
-        self.voxelSize = 0.03
+        self.voxelSize = 0.05
         self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
         self.kdTree = cKDTree(np.asarray(targetCloud.points))   # compute the kdTree for the tagetCloud   
 
@@ -85,15 +85,22 @@ class CustomICP:
     # -----------------------------------------
     # Compute residuals between matched source and target points
     # -----------------------------------------
-    def objectiveFunction(self, parameters, transformedSourcePoints, matchedTargetPoints):
+    def objectiveFunction(self, parameters, transformedSourcePoints, targetPoints):
+        
         # Convert optimization parameters (rX, rY, rZ, tX, tY, tZ) into a 4x4 incremental transformation matrix.
         deltaTransformation = self.smallTransform(parameters)  # 4x4 matrix
 
         # Apply the incremental transformation to the source points.
         transformedSourcePoints = self.transformPoints(transformedSourcePoints, deltaTransformation)  # (N, 3)
 
+        # Find nearest-neighbor correspondences (source → target)
+        sourceToTargetCorrespondencesIndex = self.sourceToTargetCorrespondencesIndex(transformedSourcePoints)
+
+        # Retrieve matched target points using the correspondence indices
+        matchedTargetPoints = targetPoints[sourceToTargetCorrespondencesIndex]
+
         # Compute residuals (differences) between transformed source points and their corresponding target points.
-        differences = transformedSourcePoints - matchedTargetPoints  # (N, 3)
+        differences = matchedTargetPoints - transformedSourcePoints   # (N, 3)
 
         # Flatten the residual matrix into a 1D array (required by scipy.optimize.least_squares).
         return differences.ravel()
@@ -107,66 +114,41 @@ class CustomICP:
         sourcePoints = np.asarray(sourceCloud.points)
         targetPoints = np.asarray(targetCloud.points)  # Target cloud stays fixed
 
-        # Initialize transformation from global registration
-        currentTransformation = copy.deepcopy(globalRegistrationTransformation.transformation)
+        firstTransformation = globalRegistrationTransformation.transformation.copy()
+       
+        # Transform the source cloud with the current transformation
+        transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
 
-        
-
-        # Main ICP iteration loop
-        for i in range(self.maxIterations):
-            
-            # Transform the source cloud with the current transformation
-            transformedSourcePoints = self.transformPoints(sourcePoints, currentTransformation)
-
-            # Find nearest-neighbor correspondences (source → target)
-            sourceToTargetCorrespondencesIndex = self.sourceToTargetCorrespondencesIndex(transformedSourcePoints)
-
-            # Retrieve matched target points using the correspondence indices
-            matchedTargetPoints = targetPoints[sourceToTargetCorrespondencesIndex]
-
-            # Define objective (residual) function for least squares optimization
-            objectiveFunction = partial(
+        # Define objective (residual) function for least squares optimization
+        objectiveFunction = partial(
                 self.objectiveFunction,
                 transformedSourcePoints=transformedSourcePoints,
-                matchedTargetPoints=matchedTargetPoints,
-            )
+                targetPoints=targetPoints,
+        )
 
             # Solve for the incremental transformation using robust least squares
-            residualResultLeastSquares = least_squares(
+        residualResultLeastSquares = least_squares(
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)
                 loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
-                verbose=0                           # Internal solver output for debugging
-            )
+                max_nfev  = 2,
+                verbose=2                           # Internal solver output for debugging
+        )
             
-            # Compute RMSE (Root Mean Square Error) of residuals
-            rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))
+        # Compute RMSE (Root Mean Square Error) of residuals
+        rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))
 
-            # Convert optimized parameters into a 4x4 transformation matrix
-            resultLeastSquaresTransformation = self.smallTransform(residualResultLeastSquares.x)
+        # Convert optimized parameters into a 4x4 transformation matrix
+        resultLeastSquaresTransformation = self.smallTransform(residualResultLeastSquares.x)
 
-            # Update the current transformation (compose incrementally)
-            currentTransformation = resultLeastSquaresTransformation @ currentTransformation
-
-            # print the current transformation matrix
-            print(currentTransformation)
-
-            # Report iteration results
-            if self.verbose:
-                print(f"Iteration {i + 1:02d}: error = {rootMeanSquaredError:.6f}")
-
-            # Check convergence condition
-            if np.linalg.norm(residualResultLeastSquares.x) < self.tolerance:
-                if self.verbose:
-                    print(f"Converged at iteration {i + 1}")
-                break
+        finalTransformation = resultLeastSquaresTransformation @ firstTransformation
 
 
-        # -----------------------------------------
-        # Store and return final results
-        # -----------------------------------------
-        self.finalTransform = copy.deepcopy(currentTransformation)
-        return self.finalTransform, rootMeanSquaredError
+        # Report iteration results
+        if self.verbose:
+            print(f"RMSE error = {rootMeanSquaredError:.6f}")
+
+        return finalTransformation, rootMeanSquaredError
 
