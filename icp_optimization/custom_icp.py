@@ -17,8 +17,8 @@ class CustomICP:
         self.tolerance = tolerance                              # convergence threshold
         self.verbose = verbose                                  # print debug info if True
         self.finalTransform = np.eye(4)                         # final 4x4 transformation matrix
-        self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 10            # define the distanceThreshold
+        self.voxelSize = 0.03
+        self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
         self.kdTree = cKDTree(np.asarray(targetCloud.points))   # compute the kdTree for the tagetCloud   
 
 
@@ -110,9 +110,11 @@ class CustomICP:
         # Initialize transformation from global registration
         currentTransformation = copy.deepcopy(globalRegistrationTransformation.transformation)
 
+        
+
         # Main ICP iteration loop
         for i in range(self.maxIterations):
-
+            
             # Transform the source cloud with the current transformation
             transformedSourcePoints = self.transformPoints(sourcePoints, currentTransformation)
 
@@ -134,11 +136,11 @@ class CustomICP:
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)
-                loss='huber',                       # Robust loss function to reduce outlier influence // rho(z) = z if z <= 1 else 2*z**0.5 - 1
+                loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
-                verbose=2                           # Internal solver output for debugging
+                verbose=0                           # Internal solver output for debugging
             )
-
+            
             # Compute RMSE (Root Mean Square Error) of residuals
             rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))
 
@@ -147,6 +149,7 @@ class CustomICP:
 
             # Update the current transformation (compose incrementally)
             currentTransformation = resultLeastSquaresTransformation @ currentTransformation
+
             # print the current transformation matrix
             print(currentTransformation)
 
@@ -159,6 +162,7 @@ class CustomICP:
                 if self.verbose:
                     print(f"Converged at iteration {i + 1}")
                 break
+
 
         # -----------------------------------------
         # Store and return final results

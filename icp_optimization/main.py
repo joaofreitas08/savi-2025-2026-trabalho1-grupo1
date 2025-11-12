@@ -97,10 +97,6 @@ def viewportConfiguration(window, pointClouds, pointCloudsGlobalRegistrationList
         viewport.scene.add_geometry(f"cloud_registered_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_registered_{idx}", False)  # Hide 
 
-    
-
-    
-
     # Setup camera to start with a good viewpoint 
     if pointClouds:
         bounds = pointClouds[0].get_axis_aligned_bounding_box()
@@ -153,31 +149,49 @@ def controlPanelConfiguration(window, pointClouds, viewport):
 
     # Create and activate checkboxes/label 
     for idx, _ in enumerate(pointClouds):
+        if idx == 0:
+            #Create a label for each pcd and add the color name
+            label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
 
-        #Create a label for each pcd and add the color name
-        label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
+            checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
 
-        checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
-        checkboxShowGlobalRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Global Registered")
-        checkboxShowRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Registered")
-        colorPickerOriginal = o3d.visualization.gui.ColorEdit()
-        colorPickerGlobalRegistrationDebug = o3d.visualization.gui.ColorEdit()
-        colorPickerRegistrationDebug = o3d.visualization.gui.ColorEdit()
+            colorPickerOriginal = o3d.visualization.gui.ColorEdit()
 
-        checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
-        checkboxShowGlobalRegistrationDebug.set_on_checked(partial(onCheckboxShowGlobalRegistrationDebugToggled, viewport, idx))
-        checkboxShowRegistrationDebug.set_on_checked(partial(onCheckboxShowRegistrationDebugToggled, viewport, idx))
-        colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
-        colorPickerGlobalRegistrationDebug.set_on_value_changed(partial(onColorChangeGlobalRegistrationDebug, viewport, idx = idx))
-        colorPickerRegistrationDebug.set_on_value_changed(partial(onColorChangeRegistrationDebug, viewport, idx = idx))
+            checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
+
+            colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
+
+        else:
+            #Create a label for each pcd and add the color name
+            label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
+
+            checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
+            checkboxShowGlobalRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Global Registered")
+            checkboxShowRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Registered")
+
+            colorPickerOriginal = o3d.visualization.gui.ColorEdit()
+            colorPickerGlobalRegistrationDebug = o3d.visualization.gui.ColorEdit()
+            colorPickerRegistrationDebug = o3d.visualization.gui.ColorEdit()
+
+            checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
+            checkboxShowGlobalRegistrationDebug.set_on_checked(partial(onCheckboxShowGlobalRegistrationDebugToggled, viewport, idx))
+            checkboxShowRegistrationDebug.set_on_checked(partial(onCheckboxShowRegistrationDebugToggled, viewport, idx))
+
+            colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
+            colorPickerGlobalRegistrationDebug.set_on_value_changed(partial(onColorChangeGlobalRegistrationDebug, viewport, idx = idx))
+            colorPickerRegistrationDebug.set_on_value_changed(partial(onColorChangeRegistrationDebug, viewport, idx = idx))
+
 
         controlPanel.add_child(label)
         controlPanel.add_child(checkboxShowOriginal)
         controlPanel.add_child(colorPickerOriginal)
-        controlPanel.add_child(checkboxShowGlobalRegistrationDebug)
-        controlPanel.add_child(colorPickerGlobalRegistrationDebug)
-        controlPanel.add_child(checkboxShowRegistrationDebug)
-        controlPanel.add_child(colorPickerRegistrationDebug)
+
+        if idx > 0:
+            controlPanel.add_child(checkboxShowGlobalRegistrationDebug)
+            controlPanel.add_child(colorPickerGlobalRegistrationDebug)
+            controlPanel.add_child(checkboxShowRegistrationDebug)
+            controlPanel.add_child(colorPickerRegistrationDebug)
+
 
     return controlPanel
 
