@@ -231,7 +231,7 @@ def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, 
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(ransacDistanceThreshold)
             ], 
-            o3d.pipelines.registration.RANSACConvergenceCriteria(100, 0.999)) # iteration limit and confidence
+            o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence \\\\put 200
 
     return globalRegistrationTransformation
 
@@ -299,8 +299,6 @@ def main():
 
             estimatedTransformation = np.eye(4)  # Transformation is identity for the first cloud
             ransacEstimatedTransformation = np.eye(4)
-
-
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
         else:
@@ -317,19 +315,15 @@ def main():
             customICP = CustomICP()
             estimatedTransformation, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
 
-        
         # -----------------------------------------
-        # Apply transformation and accumulate
+        # Apply Ransac Transformation for visualization
         # -----------------------------------------
-        
         pointCloudGlobalRegistrationDebug = copy.deepcopy(pointCloud)
         pointCloudGlobalRegistration = pointCloudGlobalRegistrationDebug.transform(
         ransacEstimatedTransformation
         )
-
         pointCloudsGlobalRegistrationList.append(pointCloudGlobalRegistration)
         
-
         # Apply transformation 
         accumulatedPointCloud += pointCloud.transform(estimatedTransformation)
 

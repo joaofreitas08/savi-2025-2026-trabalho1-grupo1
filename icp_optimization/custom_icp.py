@@ -5,6 +5,8 @@ import copy
 from functools import partial
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial import cKDTree
+import time
+
 
 class CustomICP:
     """Simplified Point-to-Point ICP implementation using SciPy least_squares."""
@@ -15,9 +17,56 @@ class CustomICP:
         # -----------------------------------------
         self.verbose = verbose                                  # print debug info if True
         self.finalTransform = np.eye(4)                         # final 4x4 transformation matrix
-        self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 10           # define the distanceThreshold
+        self.voxelSize = 0.01
+        self.distanceThreshold = self.voxelSize * 1.5          # define the distanceThreshold
+
+
+    # -----------------------------------------
+    # Visualzer for each Iteration 
+    # -----------------------------------------
+    def init_visualizer(self, targetCloud):
+        self.vis = o3d.visualization.Visualizer()
+        self.vis.create_window("ICP Animation", width=800, height=600)
+
         
+        self.sourceVisualization = o3d.geometry.PointCloud()
+        # Make deep copies so original clouds stay intact
+        self.targetVisualization = copy.deepcopy(targetCloud)
+
+        
+        self.targetVisualization.paint_uniform_color([0, 1, 0])   # green
+
+        self.vis.add_geometry(self.sourceVisualization)
+        self.vis.add_geometry(self.targetVisualization)
+        
+        renderOption = self.vis.get_render_option()
+        renderOption.point_size = 2.0        
+
+
+        self.vis.poll_events()
+        self.vis.update_renderer()
+
+    # -----------------------------------------
+    # Add a callback that applies the current ICP update and rerenders 
+    # -----------------------------------------
+    def iterationCallback(self, x, transformedSourcePoints):
+        # x é o vetor de parâmetros atual da iteração
+        transformation = self.smallTransform(x)
+
+        updatedPointCloud = self.transformPoints(transformedSourcePoints, transformation)
+
+        updatedPointCloudO3D = o3d.utility.Vector3dVector(updatedPointCloud)
+
+        self.sourceVisualization.points = updatedPointCloudO3D
+        self.sourceVisualization.paint_uniform_color([1, 0, 0])   # red
+
+        self.vis.update_geometry(self.sourceVisualization)
+        self.vis.poll_events()
+        self.vis.update_renderer()
+
+        time.sleep(0.01)
+
+
     # -----------------------------------------
     # Apply a 4x4 transformation matrix to Nx3 points
     # -----------------------------------------
@@ -101,7 +150,6 @@ class CustomICP:
         # Flatten the residual matrix into a 1D array (required by scipy.optimize.least_squares).
         return differences.ravel()
 
-
     # -----------------------------------------
     # Main ICP optimization loop
     # -----------------------------------------
@@ -119,6 +167,10 @@ class CustomICP:
         # Transform the source cloud with the current transformation
         transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
 
+        #Initialize the viewer
+        self.init_visualizer(targetCloud)
+
+
         # Define objective (residual) function for least squares optimization
         objectiveFunction = partial(
                 self.objectiveFunction,
@@ -131,18 +183,23 @@ class CustomICP:
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)
+                ftol=1e-05,
                 loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
-                max_nfev  = 40,
-                verbose=2                           # Internal solver output for debugging
+                verbose=2,
+                callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging
         )
-            
+
+        # close window when optimization ends
+        self.vis.destroy_window() 
+
         # Compute RMSE (Root Mean Square Error) of residuals
         rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))
 
         # Convert optimized parameters into a 4x4 transformation matrix
         resultLeastSquaresTransformation = self.smallTransform(residualResultLeastSquares.x)
 
+        # Create the final transformation
         finalTransformation = resultLeastSquaresTransformation @ firstTransformation
 
 
