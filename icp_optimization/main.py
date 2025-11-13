@@ -231,7 +231,7 @@ def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, 
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(ransacDistanceThreshold)
             ], 
-            o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence
+            o3d.pipelines.registration.RANSACConvergenceCriteria(100, 0.999)) # iteration limit and confidence
 
     return globalRegistrationTransformation
 
@@ -314,11 +314,7 @@ def main():
             ransacEstimatedTransformation = globalRegistrationTransformation.transformation
             
             #Custom ICP procedure
-
-            maxIterations=50
-            tolerance=1e-4
-
-            customICP = CustomICP(maxIterations, tolerance, accumulatedPointCloud)
+            customICP = CustomICP()
             estimatedTransformation, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
 
         

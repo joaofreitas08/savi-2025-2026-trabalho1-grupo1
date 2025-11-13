@@ -9,19 +9,15 @@ from scipy.spatial import cKDTree
 class CustomICP:
     """Simplified Point-to-Point ICP implementation using SciPy least_squares."""
 
-    def __init__(self, maxIterations, tolerance, targetCloud, verbose=True):
+    def __init__(self, verbose=True):
         # -----------------------------------------
         # Initialize main ICP parameters
         # -----------------------------------------
-        self.maxIterations = maxIterations                      # maximum number of ICP iterations
-        self.tolerance = tolerance                              # convergence threshold
         self.verbose = verbose                                  # print debug info if True
         self.finalTransform = np.eye(4)                         # final 4x4 transformation matrix
         self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
-        self.kdTree = cKDTree(np.asarray(targetCloud.points))   # compute the kdTree for the tagetCloud   
-
-
+        self.distanceThreshold = self.voxelSize * 10           # define the distanceThreshold
+        
     # -----------------------------------------
     # Apply a 4x4 transformation matrix to Nx3 points
     # -----------------------------------------
@@ -114,7 +110,11 @@ class CustomICP:
         sourcePoints = np.asarray(sourceCloud.points)
         targetPoints = np.asarray(targetCloud.points)  # Target cloud stays fixed
 
+        # Copy the first transformation given by globalRegistration
         firstTransformation = globalRegistrationTransformation.transformation.copy()
+
+        # Compute the kdTree for the targetCloud   
+        self.kdTree = cKDTree(np.asarray(targetCloud.points))   
        
         # Transform the source cloud with the current transformation
         transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
@@ -126,14 +126,14 @@ class CustomICP:
                 targetPoints=targetPoints,
         )
 
-            # Solve for the incremental transformation using robust least squares
+        # Solve for the incremental transformation using robust least squares
         residualResultLeastSquares = least_squares(
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)
                 loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
-                max_nfev  = 2,
+                max_nfev  = 40,
                 verbose=2                           # Internal solver output for debugging
         )
             
