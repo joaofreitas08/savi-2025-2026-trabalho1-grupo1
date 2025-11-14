@@ -148,39 +148,32 @@ def controlPanelConfiguration(window, pointClouds, viewport):
 
     # Create and activate checkboxes/label 
     for idx, _ in enumerate(pointClouds):
-        if idx == 0:
-            #Create a label for each pcd and add the color name
-            label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
+        # create a exception for the first(target) pointCloud
 
-            checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
+        #Create a label for each pcd and add the color name
+        label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
 
-            colorPickerOriginal = o3d.visualization.gui.ColorEdit()
+        # Create checkboxes
+        checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
+        checkboxShowGlobalRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Global Registered")
+        checkboxShowRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Registered")
 
-            checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
+        # Create ColorPickers
+        colorPickerOriginal = o3d.visualization.gui.ColorEdit()
+        colorPickerGlobalRegistrationDebug = o3d.visualization.gui.ColorEdit()
+        colorPickerRegistrationDebug = o3d.visualization.gui.ColorEdit()
 
-            colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
+        # Link checkboxes
+        checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
+        checkboxShowGlobalRegistrationDebug.set_on_checked(partial(onCheckboxShowGlobalRegistrationDebugToggled, viewport, idx))
+        checkboxShowRegistrationDebug.set_on_checked(partial(onCheckboxShowRegistrationDebugToggled, viewport, idx))
 
-        else:
-            #Create a label for each pcd and add the color name
-            label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
+        # Link ColorPickers
+        colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
+        colorPickerGlobalRegistrationDebug.set_on_value_changed(partial(onColorChangeGlobalRegistrationDebug, viewport, idx = idx))
+        colorPickerRegistrationDebug.set_on_value_changed(partial(onColorChangeRegistrationDebug, viewport, idx = idx))
 
-            checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
-            checkboxShowGlobalRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Global Registered")
-            checkboxShowRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Registered")
-
-            colorPickerOriginal = o3d.visualization.gui.ColorEdit()
-            colorPickerGlobalRegistrationDebug = o3d.visualization.gui.ColorEdit()
-            colorPickerRegistrationDebug = o3d.visualization.gui.ColorEdit()
-
-            checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
-            checkboxShowGlobalRegistrationDebug.set_on_checked(partial(onCheckboxShowGlobalRegistrationDebugToggled, viewport, idx))
-            checkboxShowRegistrationDebug.set_on_checked(partial(onCheckboxShowRegistrationDebugToggled, viewport, idx))
-
-            colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
-            colorPickerGlobalRegistrationDebug.set_on_value_changed(partial(onColorChangeGlobalRegistrationDebug, viewport, idx = idx))
-            colorPickerRegistrationDebug.set_on_value_changed(partial(onColorChangeRegistrationDebug, viewport, idx = idx))
-
-
+        # Add all to control Panel 
         controlPanel.add_child(label)
         controlPanel.add_child(checkboxShowOriginal)
         controlPanel.add_child(colorPickerOriginal)
@@ -191,18 +184,18 @@ def controlPanelConfiguration(window, pointClouds, viewport):
             controlPanel.add_child(checkboxShowRegistrationDebug)
             controlPanel.add_child(colorPickerRegistrationDebug)
 
-
     return controlPanel
+
 
 #--------------------------
 # Downsample and Normals
 #-------------------------
 def downsampleAndEstimateNormals(pointCloud, args):
-                radiusNormal = args['voxelSize'] * 2
-                pointCloudDownsampled = pointCloud.voxel_down_sample(args['voxelSize'])
-                pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30)) # type: ignore
+    radiusNormal = args['voxelSize'] * 2
+    pointCloudDownsampled = pointCloud.voxel_down_sample(args['voxelSize'])
+    pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30)) # type: ignore
 
-                return pointCloudDownsampled
+    return pointCloudDownsampled
 
 
 #--------------------------
@@ -261,6 +254,7 @@ def main():
     if len(pointCloudFilenames) == 0:
         raise ValueError('Could not find any point cloud in folder ' + args['inputFolder'])
     
+
     # ----------------------------------
     # Load PCs
     # ----------------------------------
@@ -292,7 +286,7 @@ def main():
     # Create a list to have all the pointClouds only globalRegistered
     pointCloudsGlobalRegistrationList = []
 
-    
+
     # Create a for loop to apply the transformation to all the sources(the ones who will move)
     for idx, pointCloud in enumerate(pointCloudsRegistrationDebug):
         
@@ -305,12 +299,14 @@ def main():
         if len(accumulatedPointCloud.points) == 0: # no points in the accumulated
             
             # Transformation is identity for the firstCloud(globalregist to visualize and final)
-            estimatedTransformation = np.eye(4)  # Transformation is identity for the first cloud
+            estimatedTransformation = np.eye(4) 
             ransacEstimatedTransformation = np.eye(4)
+
             # Downsample and Estimate Normals
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
         else:
+
             # Downsample and Estimate Normals
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
@@ -320,7 +316,7 @@ def main():
 
             ransacEstimatedTransformation = globalRegistrationTransformation.transformation
             
-            #Custom ICP procedure
+            # ICP Registration procedure (call the CustomICP class)
             customICP = CustomICP()
             estimatedTransformation, rmse = customICP.run(pointCloud, accumulatedPointCloud, globalRegistrationTransformation)
 
@@ -333,19 +329,16 @@ def main():
         )
         pointCloudsGlobalRegistrationList.append(pointCloudGlobalRegistration)
         
+        # -----------------------------------------
+        # Apply Final Transformation and accumulate
+        # -----------------------------------------
         # Apply transformation 
         accumulatedPointCloud += pointCloud.transform(estimatedTransformation)
-
         # Accumulate transformed Clouds                                  
         accumulatedPointCloudDownsampled += pointCloudDownsampled.transform(estimatedTransformation) # type: ignore
         # Post merge downlsampling
         accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
-        
-        accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
 
-        # if not accumulatedPointCloudDownsampled.has_normals():
-        #     radiusNormal = args['voxelSize'] * 4
-        #     accumulatedPointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
 
         # -----------------------------------------
         # Update dictionary registeredTable and print Accumulated PC Points
@@ -367,12 +360,13 @@ def main():
 
 
     # -----------------------------------------
-    # Table for debug print
+    # Table for print
     # -----------------------------------------
     print(f"{'Point Clouds':<25} | {'RANSAC RMSE':<16} | {'ICP_RMSE':<16}")
     print("-" * 59)
     for key, values in registeredTable.items():
         print(f"{key:<25} | {values[0]:<16} | {values[1]:<16}")
+
 
     # ------------------------------------
     # Write the point cloud
@@ -380,6 +374,7 @@ def main():
     filename = os.path.join(args['outputPointClouds'], f"cloud_registered.pcd")
     o3d.io.write_point_cloud(filename, accumulatedPointCloudDownsampled)
     print(f"Saved: {filename}")
+
 
     # ------------------------------------
     # Visualize the point cloud
@@ -391,15 +386,17 @@ def main():
     # Create window
     window = application.create_window("GUI", 1280, 800)
 
+    # Call viewport
     viewport = viewportConfiguration(window, pointClouds, pointCloudsGlobalRegistrationList, pointCloudsRegistrationDebug)
 
+    # Call control panel
     controlPanel = controlPanelConfiguration(window, pointClouds, viewport)
 
-    # Update new Scene and Layout
+    # Add viewport and controlPanel to the window
     window.add_child(viewport)
     window.add_child(controlPanel)
 
-    # # Handles viewport + control panel positioning
+    # Handles viewport + control panel positioning
     window.set_on_layout(partial(onLayout, window, controlPanel, viewport))
 
     # Run the app

@@ -46,13 +46,28 @@ class CustomICP:
 
         # Define the pointSize
         renderOption = self.visualizer.get_render_option()
-        renderOption.point_size = 2.0        
+        renderOption.point_size = 2.0    
+
+        # Camera Definitions
+        view = self.visualizer.get_view_control()
+        # Camera bounds
+        bounds = self.targetVisualization.get_axis_aligned_bounding_box()
+
+        # Camera center
+        center = bounds.get_center()
+        view.set_lookat(center)
+
+        # Camera Rotation
+        view.set_front([0, 0, -1])  
+        view.set_up([0, -1, 0])    
+
+        view.set_zoom(0.5)    
 
         # Update
         self.visualizer.poll_events()
         self.visualizer.update_renderer()
 
-
+        
     # -----------------------------------------
     # Add a callback that applies the current ICP update and renders
     # -----------------------------------------
@@ -194,7 +209,7 @@ class CustomICP:
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)
-                ftol=1e-05,
+                ftol=1e-05,                         #e-5
                 loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
                 verbose=2,

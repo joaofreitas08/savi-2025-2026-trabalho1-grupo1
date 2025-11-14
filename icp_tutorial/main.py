@@ -155,11 +155,11 @@ def controlPanelConfiguration(window, pointClouds, viewport):
 # Downsample and Normals
 #-------------------------
 def downsampleAndEstimateNormals(pointCloud, args):
-                radiusNormal = args['voxelSize'] * 2
-                pointCloudDownsampled = pointCloud.voxel_down_sample(args['voxelSize'])
-                pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
+    radiusNormal = args['voxelSize'] * 2
+    pointCloudDownsampled = pointCloud.voxel_down_sample(args['voxelSize'])
+    pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
 
-                return pointCloudDownsampled
+    return pointCloudDownsampled
 
 
 #--------------------------
@@ -280,6 +280,7 @@ def main():
         if len(accumulatedPointCloud.points) == 0: # no points in the accumulated
             # Transformation is identity for the firstCloud
             estimatedTransformation = np.eye(4) 
+
             # Downsample and Estimate Normals
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
