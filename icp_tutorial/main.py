@@ -166,18 +166,18 @@ def downsampleAndEstimateNormals(pointCloud, args):
 # Global Regist PCs
 #--------------------------
 def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, pointCloudDownsampled, args):
-    #calculate Global Regist Distance Threshold
+    # Calculate Global Regist Distance Threshold
     globalRegistrationDistanceThreshold = args['voxelSize'] * 3
-    #calculate Global Regist radiusFeature
+    # Calculate Global Regist radiusFeature
     radiusFeature = args['voxelSize'] * 5
 
-    #Compute features (fpfh)
+    # Compute features (fpfh)
     pointCloudFeatures = compute_fpfh_feature(pointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
     accumulatedPointCloudFeatures = compute_fpfh_feature(accumulatedPointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
 
-    #Compute globalRegistration transformation
+    # Compute globalRegistration transformation
     globalRegistrationTransformation = registration_ransac_based_on_feature_matching(
             pointCloudDownsampled, accumulatedPointCloudDownsampled, 
             pointCloudFeatures, accumulatedPointCloudFeatures, 
@@ -232,6 +232,7 @@ def main():
     # Search for points clouds in input folder
     # ----------------------------------
     pointCloudFilenames = glob.glob(os.path.join(args['inputFolder'], '*.pcd'))
+    pointCloudFilenames.sort() # To make sure we have alphabetic order
     print('Found input point clouds: ' + str(pointCloudFilenames))
     if len(pointCloudFilenames) == 0:
         raise ValueError('Could not find any point cloud in folder ' + args['inputFolder'])
@@ -274,7 +275,6 @@ def main():
         numberPC = list(range(idx))
         #Create a string with - (0-1-2...)
         listText = " - ".join(str(number) for number in numberPC)
-
 
         # Create a if for the first pointCloud that arrives
         if len(accumulatedPointCloud.points) == 0: # no points in the accumulated

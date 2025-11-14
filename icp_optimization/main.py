@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 from copy import deepcopy
 from functools import partial
 import glob
@@ -23,7 +22,6 @@ from scipy.optimize import least_squares
 # Layout Configurations
 #-----------------------------
 def onLayout(window, controlPanel, viewport, ctx):
-
     # Rectangle size
     rectangleSize = window.content_rect
 
@@ -35,8 +33,7 @@ def onLayout(window, controlPanel, viewport, ctx):
 # Paint Point Clouds Configurations
 #-----------------------------
 def onColorChange(viewport, newColor, idx):
-
-    # For transformed cloud
+    # For original cloud
     cloudName = f"cloud_{idx}"
 
     # Create new color for the material
@@ -47,23 +44,8 @@ def onColorChange(viewport, newColor, idx):
     # Update material in viewport
     viewport.scene.modify_geometry_material(cloudName, material)
 
-def onColorChangeRegistrationDebug(viewport, newColor, idx):
-
-    # For transformed cloud
-    cloudName = f"cloud_registered_{idx}"
-
-    # Create new color for the material
-    material = o3d.visualization.rendering.MaterialRecord()
-    material.shader = "defaultUnlit"
-    material.base_color = (newColor.red, newColor.green, newColor.blue, 1.0)
-
-    # Update material in viewport
-    viewport.scene.modify_geometry_material(cloudName, material)
-
-
 def onColorChangeGlobalRegistrationDebug(viewport, newColor, idx):
-
-    # For transformed cloud
+    # For GlobalRegistered cloud
     cloudName = f"cloud_globalregistered_{idx}"
 
     # Create new color for the material
@@ -74,29 +56,76 @@ def onColorChangeGlobalRegistrationDebug(viewport, newColor, idx):
     # Update material in viewport
     viewport.scene.modify_geometry_material(cloudName, material)
 
+def onColorChangeRegistrationDebug(viewport, newColor, idx):
+    # For Registered cloud
+    cloudName = f"cloud_registered_{idx}"
+
+    # Create new color for the material
+    material = o3d.visualization.rendering.MaterialRecord()
+    material.shader = "defaultUnlit"
+    material.base_color = (newColor.red, newColor.green, newColor.blue, 1.0)
+
+    # Update material in viewport
+    viewport.scene.modify_geometry_material(cloudName, material)
+
+#-----------------------------
+# Checkbox Configurations
+#-----------------------------
+def onCheckboxShowOriginalToggled(viewport, idx, isChecked):
+    # For original cloud
+    cloudName = f"cloud_{idx}"
+
+    if isChecked:
+        viewport.scene.show_geometry(cloudName, True)   # Show Again  
+    else:
+        viewport.scene.show_geometry(cloudName, False)  # Hide 
+
+def onCheckboxShowGlobalRegistrationDebugToggled(viewport, idx, isChecked):
+    # For GlobalRegistered cloud
+    cloudName = f"cloud_globalregistered_{idx}"
+
+    if isChecked:
+        viewport.scene.show_geometry(cloudName, True)   # Show Again  
+    else:
+        viewport.scene.show_geometry(cloudName, False)  # Hide 
+
+def onCheckboxShowRegistrationDebugToggled(viewport, idx, isChecked):
+    # For Registered cloud
+    cloudName = f"cloud_registered_{idx}"
+
+    if isChecked:
+        viewport.scene.show_geometry(cloudName, True)   # Show Again  
+    else:
+        viewport.scene.show_geometry(cloudName, False)  # Hide 
+
+
 #-----------------------------
 # Viewport Configuration
 #-----------------------------
 def viewportConfiguration(window, pointClouds, pointCloudsGlobalRegistrationList, pointCloudsRegistrationDebug):
+    # Create the Viewport
     viewport = o3d.visualization.gui.SceneWidget()
     viewport.scene = o3d.visualization.rendering.Open3DScene(window.renderer)
 
-    # Material
+    # Create new color for the material
     material = o3d.visualization.rendering.MaterialRecord()
     material.shader = "defaultUnlit"
 
+    # Call the pointClouds
     for idx, pointCloud in enumerate(pointClouds):
         viewport.scene.add_geometry(f"cloud_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_{idx}", False)  # Hide 
 
-    for idx, pointCloud in enumerate(pointCloudsGlobalRegistrationList):
-        viewport.scene.add_geometry(f"cloud_globalregistered_{idx}", pointCloud, material)
-        viewport.scene.show_geometry(f"cloud_globalregistered_{idx}", False)  # Hide 
-    
+    # Call the pointClouds GlobalRegistered
     for idx, pointCloud in enumerate(pointCloudsRegistrationDebug):
         viewport.scene.add_geometry(f"cloud_registered_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_registered_{idx}", False)  # Hide 
 
+    # Call the pointClouds Registered
+    for idx, pointCloud in enumerate(pointCloudsGlobalRegistrationList):
+        viewport.scene.add_geometry(f"cloud_globalregistered_{idx}", pointCloud, material)
+        viewport.scene.show_geometry(f"cloud_globalregistered_{idx}", False)  # Hide 
+    
     # Setup camera to start with a good viewpoint 
     if pointClouds:
         bounds = pointClouds[0].get_axis_aligned_bounding_box()
@@ -108,42 +137,12 @@ def viewportConfiguration(window, pointClouds, pointCloudsGlobalRegistrationList
 
     return viewport
 
-#-----------------------------
-# Checkbox Configurations
-#-----------------------------
-def onCheckboxShowOriginalToggled(viewport, idx, isChecked):
-
-    cloudName = f"cloud_{idx}"
-
-    if isChecked:
-        viewport.scene.show_geometry(cloudName, True)   # Show Again  
-    else:
-        viewport.scene.show_geometry(cloudName, False)  # Hide 
-
-def onCheckboxShowRegistrationDebugToggled(viewport, idx, isChecked):
-
-    cloudName = f"cloud_registered_{idx}"
-
-    if isChecked:
-        viewport.scene.show_geometry(cloudName, True)   # Show Again  
-    else:
-        viewport.scene.show_geometry(cloudName, False)  # Hide 
-
-def onCheckboxShowGlobalRegistrationDebugToggled(viewport, idx, isChecked):
-
-    cloudName = f"cloud_globalregistered_{idx}"
-
-    if isChecked:
-        viewport.scene.show_geometry(cloudName, True)   # Show Again  
-    else:
-        viewport.scene.show_geometry(cloudName, False)  # Hide 
 
 #-----------------------------
 # controlPanel Configuration
 #-----------------------------
 def controlPanelConfiguration(window, pointClouds, viewport):
-
-    #Layout Configuration
+    # ControlPanel Configuration
     controlPanel = o3d.visualization.gui.Vert(0.25 * window.theme.font_size,
         o3d.visualization.gui.Margins(10, 10, 10, 10))
 
@@ -210,17 +209,18 @@ def downsampleAndEstimateNormals(pointCloud, args):
 # Global Regist PCs
 #--------------------------
 def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, pointCloudDownsampled, args):
-
+    # Calculate Global Regist Distance Threshold
     ransacDistanceThreshold = args['voxelSize'] * 3
+    # Calculate Global Regist radiusFeature
     radiusFeature = args['voxelSize'] * 5
 
-    #Compute features
+    # Compute features (fpfh)
     pointCloudFeatures = compute_fpfh_feature(pointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
     accumulatedPointCloudFeatures = compute_fpfh_feature(accumulatedPointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
 
-    #Compute transformation
+    # Compute globalRegistration transformation
     globalRegistrationTransformation = registration_ransac_based_on_feature_matching(
             pointCloudDownsampled, accumulatedPointCloudDownsampled, 
             pointCloudFeatures, accumulatedPointCloudFeatures, 
@@ -234,8 +234,6 @@ def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, 
             o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence \\\\put 200
 
     return globalRegistrationTransformation
-
-
 
 
 def main():
@@ -252,6 +250,7 @@ def main():
         help="Voxel Size.)")
     
     args = vars(parser.parse_args())
+    
 
     # ----------------------------------
     # Search for points clouds in input folder
@@ -278,27 +277,37 @@ def main():
     #-----------------------------
     # Registration procedure
     #-----------------------------
+    # Create a dictionary to put all the statistics from GlobalRegistration and ICP
     registeredTable = {} #only for debug table
 
+    # Create a deepcopy of my pointclouds to apply the transformations
     pointCloudsRegistrationDebug = copy.deepcopy(pointClouds)
+
+    # Create the point cloud witch will be fixed (accumulated)
     accumulatedPointCloud = o3d.geometry.PointCloud()
+
+    # Create a downsample version to save 
     accumulatedPointCloudDownsampled = o3d.geometry.PointCloud()
+
+    # Create a list to have all the pointClouds only globalRegistered
     pointCloudsGlobalRegistrationList = []
 
     
-
+    # Create a for loop to apply the transformation to all the sources(the ones who will move)
     for idx, pointCloud in enumerate(pointCloudsRegistrationDebug):
         
         #Create a list with range idx
         numberPC = list(range(idx))
-
         #Create a string with - (0-1-2...)
         listText = " - ".join(str(number) for number in numberPC)
         
+        # Create a if for the first pointCloud that arrives
         if len(accumulatedPointCloud.points) == 0: # no points in the accumulated
-
+            
+            # Transformation is identity for the firstCloud(globalregist to visualize and final)
             estimatedTransformation = np.eye(4)  # Transformation is identity for the first cloud
             ransacEstimatedTransformation = np.eye(4)
+            # Downsample and Estimate Normals
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
         else:
