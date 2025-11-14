@@ -216,7 +216,7 @@ def main():
     #  Parse arguments
     # -----------------------------
     parser = argparse.ArgumentParser(description="Read Poit Clouds To Register")
-    parser.add_argument('-ifd', "--inputFolder",  default='../image_to_cloud/cloud', type=str,
+    parser.add_argument('-ifd', "--inputFolder",  default='../image_to_cloud/output_clouds', type=str,
         help="Folder where the pointclouds images are.)")
     parser.add_argument('-outpcd', "--outputPointClouds", default='cloud_registered', type=str,
         help="Folder where the rgb images are.)")

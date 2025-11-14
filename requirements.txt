@@ -1,5 +1,6 @@
 open3d>=0.18.0
 numpy>=1.23
 scipy>=1.10
+opencv-python
 
 

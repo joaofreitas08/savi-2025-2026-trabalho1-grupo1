@@ -114,7 +114,7 @@ def main():
         help="Folder where the depth images are.)")
     parser.add_argument('-ifrgb', "--inputFolderRGB",  default='tum_dataset/rgb', type=str,
         help="Folder where the rgb images are.)")
-    parser.add_argument('-outpcd', "--outputPointClouds", default='cloud', type=str,
+    parser.add_argument('-outpcd', "--outputPointClouds", default='output_clouds', type=str,
         help="Folder where the rgb images are.)")
     
     
