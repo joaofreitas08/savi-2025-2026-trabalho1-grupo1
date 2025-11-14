@@ -46,7 +46,7 @@ class CustomICP:
 
         # Define the pointSize
         renderOption = self.visualizer.get_render_option()
-        renderOption.point_size = 2.0    
+        renderOption.point_size = 1.0    
 
         # Camera Definitions
         view = self.visualizer.get_view_control()
