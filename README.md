@@ -10,11 +10,11 @@ This assignment is divided into **four tasks**, each addressing a different stag
 
 ### 1. Image (depth and RGB) to point cloud
 Converts an RGB image and its corresponding depth image into a 3D point cloud.
-For more details, check [these example](docs/examples).
+For more details, check [these example](docs\example_image_to_cloud).
 
 ### 2. ICP tutotial from Open3D 
 Uses Open3D’s built-in ICP (Iterative Closest Point) to align multiple point clouds.
-For more details, check [these example](docs/examples).
+For more details, check [these example](docs\example_icp_tutorial).
 
 ### 3. ICP custom optimization
 Implements a **custom ICP algorithm** using `scipy.optimize.least_squares`.  
@@ -23,11 +23,11 @@ This includes:
 - computing point correspondences  
 - visualizing the ICP evolution over iterations  
 
-For more details, check [these example](docs/examples).
+For more details, check [these example](docs\example_icp_optimization).
 
 ### 4. Minimal global sphere oprimization 
 Computes the **minimum enclosing sphere** of a point cloud using nonlinear optimization (SLSQP), with real-time visualization in the Open3D GUI.
-For more details, check [these example](docs/examples).
+For more details, check [these example](docs\example_minimum_enclosing_sphere_optimization).
 
 
 
