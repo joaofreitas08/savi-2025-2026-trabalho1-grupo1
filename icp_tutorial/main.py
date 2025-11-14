@@ -3,8 +3,6 @@ from copy import deepcopy
 from functools import partial
 import glob
 from random import randint
-# from matplotlib import pyplot as plt
-from matplotlib import pyplot as plt
 import numpy as np
 import argparse
 import open3d as o3d

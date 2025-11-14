@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-# shebang line for linux / mac
-
 from copy import deepcopy
 from functools import partial
 import glob
 from random import randint
-# from matplotlib import pyplot as plt
-from matplotlib import pyplot as plt
 import numpy as np
 import argparse
 import open3d as o3d
 import os
-
-
 
 #------------------------------------
 # Layout Configurations
@@ -25,6 +19,7 @@ def onLayout(window, controlPanel, viewport, ctx):
     # Layout and scene frame
     controlPanel.frame = o3d.visualization.gui.Rect(rectangleSize.width - 210, 20, 210, rectangleSize.height - 80)
     viewport.frame = o3d.visualization.gui.Rect(rectangleSize.x, rectangleSize.y, rectangleSize.width, rectangleSize.height)
+
 
 #-----------------------------
 # Paint Point Clouds Configurations
@@ -67,6 +62,7 @@ def viewportConfiguration(window, pointClouds):
         viewport.background_color = o3d.visualization.gui.Color(1, 1, 1)
 
     return viewport
+
 
 #-----------------------------
 # Checkbox Configurations
@@ -203,9 +199,6 @@ def main():
 
     # Handles viewport + control panel positioning
     window.set_on_layout(partial(onLayout, window, controlPanel, viewport))
-
-    opt = window.get_render_option()
-    opt.point_show_normal = True
 
     # Run the app
     application.run()
