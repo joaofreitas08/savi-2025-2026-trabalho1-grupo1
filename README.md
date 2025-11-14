@@ -8,23 +8,26 @@
 
 This assignment is divided into **four tasks**, each addressing a different stage of a 3D perception and processing pipeline:
 
-### 1. image_to_cloud
+### 1. Image (depth and RGB) to point cloud
 Converts an RGB image and its corresponding depth image into a 3D point cloud.
+For more details, check [these example](docs/examples).
 
-### 2. icp_tutorial  
+### 2. ICP tutotial from Open3D 
 Uses Open3D’s built-in ICP (Iterative Closest Point) to align multiple point clouds.
+For more details, check [these example](docs/examples).
 
-### 3. icp_optimization  
+### 3. ICP custom optimization
 Implements a **custom ICP algorithm** using `scipy.optimize.least_squares`.  
 This includes:
-- building your own residual function  
+- building own residual function  
 - computing point correspondences  
 - visualizing the ICP evolution over iterations  
 
-### 4. minimal_global_sphere_optimization  
-Computes the **minimum enclosing sphere** of a point cloud using nonlinear optimization (SLSQP), with real-time visualization in the Open3D GUI.
+For more details, check [these example](docs/examples).
 
-Each module demonstrates a different technique used in 3D perception pipelines.
+### 4. Minimal global sphere oprimization 
+Computes the **minimum enclosing sphere** of a point cloud using nonlinear optimization (SLSQP), with real-time visualization in the Open3D GUI.
+For more details, check [these example](docs/examples).
 
 
 
