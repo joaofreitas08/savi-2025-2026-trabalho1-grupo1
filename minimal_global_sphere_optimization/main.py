@@ -9,16 +9,16 @@ import time
 from open3d.visualization import gui, rendering
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Objective function (SLSQP minimizes the radius)
-# ============================================================
+# ------------------------------------------------------------
 def objectiveFunction(params):
     return abs(params[3])     # radius is parameter 3
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Constraint: distance(point_i, center) <= radius
-# ============================================================
+# ------------------------------------------------------------
 def constraintFunction(params, points):
     center = np.array(params[:3])
     radius = params[3]
@@ -27,9 +27,9 @@ def constraintFunction(params, points):
     return radius - distances      # must be >= 0
 
 
-# ============================================================
+# ------------------------------------------------------------
 # CALLBACK: ANIMATE SPHERE EACH ITERATION
-# ============================================================
+# ------------------------------------------------------------
 def iterationCallback(params, window, sceneWidget):
     center = np.array(params[:3])
     radius = params[3]
@@ -40,9 +40,9 @@ def iterationCallback(params, window, sceneWidget):
     time.sleep(0.5)     # Animation speed
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Create transparent sphere mesh
-# ============================================================
+# ------------------------------------------------------------
 def createTransparentSphere(center, radius):
     radius = max(abs(radius), 1e-6)   # <--- PROTECTION AGAINST R <= 0
 
@@ -52,9 +52,9 @@ def createTransparentSphere(center, radius):
     return mesh
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Update the sphere in the GUI (runs on GUI thread)
-# ============================================================
+# ------------------------------------------------------------
 def updateSphereInGui(window, sceneWidget, sphereMesh):
     sphereMaterial = createSphereMaterial()
 
@@ -68,9 +68,9 @@ def updateSphereInGui(window, sceneWidget, sphereMesh):
     gui.Application.instance.post_to_main_thread(window, update)
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Material for transparent sphere
-# ============================================================
+# ------------------------------------------------------------
 def createSphereMaterial():
     material = rendering.MaterialRecord()
     material.shader = "defaultLitTransparency"
@@ -78,9 +78,9 @@ def createSphereMaterial():
     return material
 
 
-# ============================================================
+# ------------------------------------------------------------
 # GUI setup (SceneWidget + Open3DScene)
-# ============================================================
+# ------------------------------------------------------------
 def configureViewport(window, pointCloud):
     sceneWidget = gui.SceneWidget()
     sceneWidget.scene = rendering.Open3DScene(window.renderer)
@@ -99,9 +99,9 @@ def configureViewport(window, pointCloud):
     return sceneWidget
 
 
-# ============================================================
+# ------------------------------------------------------------
 # Optimization thread (animation handled in callback)
-# ============================================================
+# ------------------------------------------------------------
 def optimizationThread(points, initialParams, window, sceneWidget):
 
     # -------------------------------
@@ -120,9 +120,9 @@ def optimizationThread(points, initialParams, window, sceneWidget):
         sceneWidget=sceneWidget,
     )
 
-    # ============================================================
+    # ------------------------------------------------------------
     # Run SLSQP
-    # ============================================================
+    # ------------------------------------------------------------
     result = minimize(
         fun=objectiveFunction,
         x0=initialParams,
@@ -141,9 +141,9 @@ def optimizationThread(points, initialParams, window, sceneWidget):
     print("Final Radius:", finalRadius)
 
 
-# ============================================================
+# ------------------------------------------------------------
 # MAIN
-# ============================================================
+# ------------------------------------------------------------
 def main():
     # Load point cloud
     pointCloud = o3d.io.read_point_cloud("pcd_to_work/cloud_registered.pcd")

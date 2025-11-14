@@ -24,45 +24,56 @@ class CustomICP:
     # -----------------------------------------
     # Visualzer for each Iteration 
     # -----------------------------------------
-    def init_visualizer(self, targetCloud):
-        self.vis = o3d.visualization.Visualizer()
-        self.vis.create_window("ICP Animation", width=800, height=600)
+    def initVisualizer(self, targetCloud):
+        # Create the visualizer 
+        self.visualizer = o3d.visualization.Visualizer()
 
-        
+        # Create the visualizer window
+        self.visualizer.create_window("ICP Animation", width=800, height=600)
+
+        # Create the source pointCloud to update
         self.sourceVisualization = o3d.geometry.PointCloud()
-        # Make deep copies so original clouds stay intact
+
+        # Make deep copy of the target pointCloud
         self.targetVisualization = copy.deepcopy(targetCloud)
 
-        
+        # Paint the target pointCloud
         self.targetVisualization.paint_uniform_color([0, 1, 0])   # green
 
-        self.vis.add_geometry(self.sourceVisualization)
-        self.vis.add_geometry(self.targetVisualization)
-        
-        renderOption = self.vis.get_render_option()
+        # Add both pointClouds
+        self.visualizer.add_geometry(self.sourceVisualization)
+        self.visualizer.add_geometry(self.targetVisualization)
+
+        # Define the pointSize
+        renderOption = self.visualizer.get_render_option()
         renderOption.point_size = 2.0        
 
+        # Update
+        self.visualizer.poll_events()
+        self.visualizer.update_renderer()
 
-        self.vis.poll_events()
-        self.vis.update_renderer()
 
     # -----------------------------------------
-    # Add a callback that applies the current ICP update and rerenders 
+    # Add a callback that applies the current ICP update and renders
     # -----------------------------------------
     def iterationCallback(self, x, transformedSourcePoints):
-        # x é o vetor de parâmetros atual da iteração
+        # X is the vector of updated values
         transformation = self.smallTransform(x)
 
+        # Update point cloud with the values
         updatedPointCloud = self.transformPoints(transformedSourcePoints, transformation)
 
+        # Transform the poin cloud in a o3d pcd
         updatedPointCloudO3D = o3d.utility.Vector3dVector(updatedPointCloud)
 
+        # Paint the point CLoud
         self.sourceVisualization.points = updatedPointCloudO3D
         self.sourceVisualization.paint_uniform_color([1, 0, 0])   # red
 
-        self.vis.update_geometry(self.sourceVisualization)
-        self.vis.poll_events()
-        self.vis.update_renderer()
+        # Update
+        self.visualizer.update_geometry(self.sourceVisualization)
+        self.visualizer.poll_events()
+        self.visualizer.update_renderer()
 
         time.sleep(0.01)
 
@@ -168,7 +179,7 @@ class CustomICP:
         transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
 
         #Initialize the viewer
-        self.init_visualizer(targetCloud)
+        self.initVisualizer(targetCloud)
 
 
         # Define objective (residual) function for least squares optimization
@@ -190,8 +201,8 @@ class CustomICP:
                 callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging
         )
 
-        # close window when optimization ends
-        self.vis.destroy_window() 
+        # Close window when optimization ends
+        self.visualizer.destroy_window() 
 
         # Compute RMSE (Root Mean Square Error) of residuals
         rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))

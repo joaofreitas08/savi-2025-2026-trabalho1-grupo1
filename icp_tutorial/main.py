@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 from copy import deepcopy
 from functools import partial
 import glob
@@ -16,12 +15,10 @@ from open3d.pipelines.registration import compute_fpfh_feature
 from open3d.pipelines.registration import registration_ransac_based_on_feature_matching
 
 
-
 #-----------------------------
 # Layout Configurations
 #-----------------------------
 def onLayout(window, controlPanel, viewport, ctx):
-
     # Rectangle size
     rectangleSize = window.content_rect
 
@@ -29,12 +26,12 @@ def onLayout(window, controlPanel, viewport, ctx):
     controlPanel.frame = o3d.visualization.gui.Rect(rectangleSize.width - 210, 20, 210, rectangleSize.height - 80)
     viewport.frame = o3d.visualization.gui.Rect(rectangleSize.x, rectangleSize.y, rectangleSize.width, rectangleSize.height)
 
+
 #-----------------------------
 # Paint Point Clouds Configurations
 #-----------------------------
 def onColorChange(viewport, newColor, idx):
-
-    # For transformed cloud
+    # For original Cloud
     cloudName = f"cloud_{idx}"
 
     # Create new color for the material
@@ -46,8 +43,7 @@ def onColorChange(viewport, newColor, idx):
     viewport.scene.modify_geometry_material(cloudName, material)
 
 def onColorChangeRegistartionDebug(viewport, newColor, idx):
-
-    # For transformed cloud
+    # For registered Cloud
     cloudName = f"cloud_registered_{idx}"
 
     # Create new color for the material
@@ -58,26 +54,50 @@ def onColorChangeRegistartionDebug(viewport, newColor, idx):
     # Update material in viewport
     viewport.scene.modify_geometry_material(cloudName, material)
 
+
+#-----------------------------
+# Checkbox Configurations
+#-----------------------------
+def onCheckboxShowOriginalToggled(viewport, idx, isChecked):
+    # For original Cloud
+    cloudName = f"cloud_{idx}"
+
+    if isChecked:
+        viewport.scene.show_geometry(cloudName, True)   # Show Again  
+    else:
+        viewport.scene.show_geometry(cloudName, False)  # Hide 
+
+def onCheckboxShowRegistrationDebugToggled(viewport, idx, isChecked):
+    # For registered Cloud
+    cloudName = f"cloud_registered_{idx}"
+
+    if isChecked:
+        viewport.scene.show_geometry(cloudName, True)   # Show Again  
+    else:
+        viewport.scene.show_geometry(cloudName, False)  # Hide 
+
+
 #-----------------------------
 # Viewport Configuration
 #-----------------------------
 def viewportConfiguration(window, pointClouds, pointCloudsRegistrationDebug):
+    # Create the Viewport
     viewport = o3d.visualization.gui.SceneWidget()
     viewport.scene = o3d.visualization.rendering.Open3DScene(window.renderer)
 
-    # Material
+    # Create new color for the material
     material = o3d.visualization.rendering.MaterialRecord()
     material.shader = "defaultUnlit"
 
+    # Call the pointClouds
     for idx, pointCloud in enumerate(pointClouds):
         viewport.scene.add_geometry(f"cloud_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_{idx}", False)  # Hide 
     
+    # Call the pointClouds Registered
     for idx, pointCloud in enumerate(pointCloudsRegistrationDebug):
         viewport.scene.add_geometry(f"cloud_registered_{idx}", pointCloud, material)
         viewport.scene.show_geometry(f"cloud_registered_{idx}", False)  # Hide 
-
-    
 
     # Setup camera to start with a good viewpoint 
     if pointClouds:
@@ -90,33 +110,12 @@ def viewportConfiguration(window, pointClouds, pointCloudsRegistrationDebug):
 
     return viewport
 
-#-----------------------------
-# Checkbox Configurations
-#-----------------------------
-def onCheckboxShowOriginalToggled(viewport, idx, isChecked):
-
-    cloudName = f"cloud_{idx}"
-
-    if isChecked:
-        viewport.scene.show_geometry(cloudName, True)   # Show Again  
-    else:
-        viewport.scene.show_geometry(cloudName, False)  # Hide 
-
-def onCheckboxShowRegistrationDebugToggled(viewport, idx, isChecked):
-
-    cloudName = f"cloud_registered_{idx}"
-
-    if isChecked:
-        viewport.scene.show_geometry(cloudName, True)   # Show Again  
-    else:
-        viewport.scene.show_geometry(cloudName, False)  # Hide 
 
 #-----------------------------
 # controlPanel Configuration
 #-----------------------------
 def controlPanelConfiguration(window, pointClouds, viewport):
-
-    #Layout Configuration
+    # ControlPanel Configuration
     controlPanel = o3d.visualization.gui.Vert(0.25 * window.theme.font_size,
         o3d.visualization.gui.Margins(10, 10, 10, 10))
 
@@ -126,16 +125,23 @@ def controlPanelConfiguration(window, pointClouds, viewport):
         #Create a label for each pcd and add the color name
         label = o3d.visualization.gui.Label(f"Point Cloud {idx}")
 
+        # Create checkboxes
         checkboxShowOriginal = o3d.visualization.gui.Checkbox(f"Show PointCloud Original")
         checkboxShowRegistrationDebug = o3d.visualization.gui.Checkbox(f"Show PointCloud Registered")
+
+        # Create ColorPickers
         colorPickerOriginal = o3d.visualization.gui.ColorEdit()
         colorPickerRegistrationDebug = o3d.visualization.gui.ColorEdit()
 
+        # Link checkboxes
         checkboxShowOriginal.set_on_checked(partial(onCheckboxShowOriginalToggled, viewport, idx))
         checkboxShowRegistrationDebug.set_on_checked(partial(onCheckboxShowRegistrationDebugToggled, viewport, idx))
+
+        # Link ColorPickers
         colorPickerOriginal.set_on_value_changed(partial(onColorChange, viewport, idx = idx))
         colorPickerRegistrationDebug.set_on_value_changed(partial(onColorChangeRegistartionDebug, viewport, idx = idx))
 
+        # Add all to control Panel 
         controlPanel.add_child(label)
         controlPanel.add_child(checkboxShowOriginal)
         controlPanel.add_child(colorPickerOriginal)
@@ -144,13 +150,14 @@ def controlPanelConfiguration(window, pointClouds, viewport):
 
     return controlPanel
 
+
 #--------------------------
 # Downsample and Normals
 #-------------------------
 def downsampleAndEstimateNormals(pointCloud, args):
                 radiusNormal = args['voxelSize'] * 2
                 pointCloudDownsampled = pointCloud.voxel_down_sample(args['voxelSize'])
-                pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30)) # type: ignore
+                pointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
 
                 return pointCloudDownsampled
 
@@ -159,26 +166,27 @@ def downsampleAndEstimateNormals(pointCloud, args):
 # Global Regist PCs
 #--------------------------
 def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, pointCloudDownsampled, args):
-
-    ransacDistanceThreshold = args['voxelSize'] * 3
+    #calculate Global Regist Distance Threshold
+    globalRegistrationDistanceThreshold = args['voxelSize'] * 3
+    #calculate Global Regist radiusFeature
     radiusFeature = args['voxelSize'] * 5
 
-    #Compute features
+    #Compute features (fpfh)
     pointCloudFeatures = compute_fpfh_feature(pointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
     accumulatedPointCloudFeatures = compute_fpfh_feature(accumulatedPointCloudDownsampled,
         KDTreeSearchParamHybrid(radius=radiusFeature, max_nn=100))
 
-    #Compute transformation
+    #Compute globalRegistration transformation
     globalRegistrationTransformation = registration_ransac_based_on_feature_matching(
             pointCloudDownsampled, accumulatedPointCloudDownsampled, 
             pointCloudFeatures, accumulatedPointCloudFeatures, 
-            True, ransacDistanceThreshold,
+            True, globalRegistrationDistanceThreshold,
             o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
             3,  # number of RANSAC iterations per sample
             [
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
-                o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(ransacDistanceThreshold)
+                o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(globalRegistrationDistanceThreshold)
             ], 
             o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence
 
@@ -192,11 +200,11 @@ def calculateICPTransformation(pointCloud, accumulatedPointCloud, globalRegistra
     distanceThreshold = args['voxelSize'] * 1.5
     radiusNormal = args['voxelSize'] * 2
 
-    # Compute normals
+    # Compute normals for the pointCloud and accumulated pointCLoud
     pointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=50)) # type: ignore
     accumulatedPointCloud.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=50)) # type: ignore
 
-    # run icp
+    # Run Icp
     icpRegistrationTransformation = o3d.pipelines.registration.registration_icp(
             pointCloud, accumulatedPointCloud,
             distanceThreshold,
@@ -206,7 +214,6 @@ def calculateICPTransformation(pointCloud, accumulatedPointCloud, globalRegistra
     return icpRegistrationTransformation
 
 def main():
-
     # -----------------------------
     #  Parse arguments
     # -----------------------------
@@ -220,19 +227,21 @@ def main():
     
     args = vars(parser.parse_args())
 
+
     # ----------------------------------
     # Search for points clouds in input folder
     # ----------------------------------
     pointCloudFilenames = glob.glob(os.path.join(args['inputFolder'], '*.pcd'))
-    pointCloudFilenames.sort() # To make sure we have alphabetic order
     print('Found input point clouds: ' + str(pointCloudFilenames))
     if len(pointCloudFilenames) == 0:
         raise ValueError('Could not find any point cloud in folder ' + args['inputFolder'])
+    
     
     # ----------------------------------
     # Load PCs
     # ----------------------------------
     print("Loading point clouds ...")
+    # Create a List with the loaded PCDs
     pointClouds = []
     for filename in pointCloudFilenames:
         if not os.path.exists(filename):
@@ -245,24 +254,33 @@ def main():
     #-----------------------------
     # Registration procedure
     #-----------------------------
+    # Create a dictionary to put all the statistics from GlobalRegistration and ICP
     registeredTable = {} #only for debug table
 
+    # Create a deepcopy of my pointclouds to apply the transformations
     pointCloudsRegistrationDebug = copy.deepcopy(pointClouds)
+
+    # Create the point cloud witch will be fixed (accumulated)
     accumulatedPointCloud = o3d.geometry.PointCloud()
+
+    # Create a downsample version to save 
     accumulatedPointCloudDownsampled = o3d.geometry.PointCloud()
 
+
+    # Create a for loop to apply the transformation to all the sources(the ones who will move)
     for idx, pointCloud in enumerate(pointCloudsRegistrationDebug):
         
         #Create a list with range idx
         numberPC = list(range(idx))
-
         #Create a string with - (0-1-2...)
         listText = " - ".join(str(number) for number in numberPC)
-        
+
+
+        # Create a if for the first pointCloud that arrives
         if len(accumulatedPointCloud.points) == 0: # no points in the accumulated
-
-            estimatedTransformation = np.eye(4) # Transformation is identity for the first cloud
-
+            # Transformation is identity for the firstCloud
+            estimatedTransformation = np.eye(4) 
+            # Downsample and Estimate Normals
             pointCloudDownsampled = downsampleAndEstimateNormals(pointCloud, args)
 
         else:
@@ -283,7 +301,7 @@ def main():
         # -----------------------------------------
         # Apply transformation and accumulate
         # -----------------------------------------
-        # Apply transformation 
+        # Apply estimated transformation and accumulate
         accumulatedPointCloud += pointCloud.transform(estimatedTransformation)
 
         # Accumulate transformed Clouds                                  
@@ -291,11 +309,6 @@ def main():
         # Post merge downlsampling
         accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
         
-        accumulatedPointCloudDownsampled = accumulatedPointCloudDownsampled.voxel_down_sample(args['voxelSize'])
-
-        if not accumulatedPointCloudDownsampled.has_normals():
-            radiusNormal = args['voxelSize'] * 4
-            accumulatedPointCloudDownsampled.estimate_normals(KDTreeSearchParamHybrid(radius=radiusNormal, max_nn=30))
 
         # -----------------------------------------
         # Update dictionary registeredTable and print Accumulated PC Points
@@ -316,15 +329,17 @@ def main():
 
             # Print accumulated points
             print(f'Points in the accumulated cloud [{listText}] -- {idx}: ' + str(len(accumulatedPointCloud.points)))
+            print(f'Points in the accumulated cloud Downsampled [{listText}] -- {idx}: ' + str(len(accumulatedPointCloudDownsampled.points)))
 
 
     # -----------------------------------------
-    # Table for debug print
+    # Table print
     # -----------------------------------------
     print(f"{'Point Clouds':<25} | {'RANSAC Fit':<16} | {'RANSAC RMSE':<16} | {'ICP Fit':<16} | {'ICP_RMSE':<16}")
     print("-" * 93)
     for key, values in registeredTable.items():
         print(f"{key:<25} | {values[0]:<16} | {values[1]:<16} | {values[2]:<16} | {values[3]:<16}")
+
 
     # ------------------------------------
     # Write the point cloud
@@ -333,10 +348,10 @@ def main():
     o3d.io.write_point_cloud(filename, accumulatedPointCloudDownsampled)
     print(f"Saved: {filename}")
 
+
     # ------------------------------------
     # Visualize the point cloud
     # ------------------------------------   
-
     # App inicialization
     application = o3d.visualization.gui.Application.instance
     application.initialize()
@@ -344,15 +359,17 @@ def main():
     # Create window
     window = application.create_window("GUI", 1280, 800)
 
+    # Call viewport
     viewport = viewportConfiguration(window, pointClouds, pointCloudsRegistrationDebug)
 
+    # Call control panel
     controlPanel = controlPanelConfiguration(window, pointClouds, viewport)
 
-    # Update new Scene and Layout
+    # Add viewport and controlPanel to the window
     window.add_child(viewport)
     window.add_child(controlPanel)
 
-    # # Handles viewport + control panel positioning
+    # Handles viewport + control panel positioning
     window.set_on_layout(partial(onLayout, window, controlPanel, viewport))
 
     # Run the app
