@@ -5,7 +5,6 @@ from scipy.optimize import minimize
 from functools import partial
 import threading
 import time
-
 from open3d.visualization import gui, rendering
 
 #-----------------------------
