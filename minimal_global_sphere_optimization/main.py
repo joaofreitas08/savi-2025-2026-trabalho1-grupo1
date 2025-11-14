@@ -6,26 +6,21 @@ from functools import partial
 import time
 
 
-# Melhoria na Função Objetivo
-def sphereObjective(params, points):
+def objectiveFunction(params):
     # params = [xc, yc, zc, r]
-    r = params[3]
-    return r**2 # Minimizar o raio ao quadrado
+    return abs(params[3])
 
 #minimize r knowing that all the points should be inside th sphere
 
 
-# Melhoria na Função de Restrição (r² - d² >= 0)
-def sphereConstraint(params, points):
+def constraintFunction(params, points):
     xc, yc, zc, r = params
     center = np.array([xc, yc, zc])
 
-    # 1. Distâncias Quadradas
-    # np.sum(..., axis=1) calcula a soma dos quadrados das diferenças (a distância euclidiana ao quadrado)
-    distancesSquare = np.sum((points - center)**2, axis=1)
-    
-    # 2. Restrição Otimizada (r² - dist² >= 0)
-    return r**2 - distancesSquare
+    distances = np.linalg.norm(points - center, axis=1)
+
+    # SLSQP requires constraints >= 0
+    return r - distances
 
 
 # -----------------------------------------
@@ -120,7 +115,7 @@ def main():
     # -----------------------------------------
     cons = ({
         "type": "ineq",
-        "fun": partial(sphereConstraint, points=points)
+        "fun": partial(constraintFunction, points=points)
     })
 
     # -----------------------------------------
@@ -131,14 +126,11 @@ def main():
                               vis=vis,
                               sphere=sphere)
 
-    wrappedObjective = partial(sphereObjective,
-                               points=points)
-
     # -----------------------------------------
     # Minimização com animação
     # -----------------------------------------
     result = minimize(
-        fun=wrappedObjective,
+        fun=objectiveFunction,
         x0=x0,
         method="SLSQP",
         constraints=cons,
