@@ -3,173 +3,175 @@ import numpy as np
 import open3d as o3d
 from scipy.optimize import minimize
 from functools import partial
+import threading
 import time
 
+from open3d.visualization import gui, rendering
 
+
+# ============================================================
+# Objective function (SLSQP minimizes the radius)
+# ============================================================
 def objectiveFunction(params):
-    # params = [xc, yc, zc, r]
-    return abs(params[3])
-
-#minimize r knowing that all the points should be inside th sphere
+    return abs(params[3])     # radius is parameter 3
 
 
+# ============================================================
+# Constraint: distance(point_i, center) <= radius
+# ============================================================
 def constraintFunction(params, points):
-    xc, yc, zc, r = params
-    center = np.array([xc, yc, zc])
+    center = np.array(params[:3])
+    radius = params[3]
 
     distances = np.linalg.norm(points - center, axis=1)
-
-    # SLSQP requires constraints >= 0
-    return r - distances
+    return radius - distances      # must be >= 0
 
 
-# -----------------------------------------
-# Inicializar visualizador antigo Open3D
-# -----------------------------------------
-def initVisualizer(points):
-    vis = o3d.visualization.Visualizer()
-    vis.create_window("Sphere Optimization Animation", 1024, 768)
+# ============================================================
+# CALLBACK: ANIMATE SPHERE EACH ITERATION
+# ============================================================
+def iterationCallback(params, window, sceneWidget):
+    center = np.array(params[:3])
+    radius = params[3]
 
-    # Obter opções de renderização PRIMEIRO
-    renderOpt = vis.get_render_option()
+    sphereMesh = createTransparentSphere(center, radius)
+    updateSphereInGui(window, sceneWidget, sphereMesh)
 
-    # 1. Geometria da cloud (Pontos Sólidos)
-    cloud = o3d.geometry.PointCloud()
-    cloud.points = o3d.utility.Vector3dVector(points)
-    cloud.paint_uniform_color([0.8, 0.8, 0.8])
-    vis.add_geometry(cloud)
-
-    # 2. Esfera será substituída a cada iteração
-    sphere = o3d.geometry.TriangleMesh()
-    vis.add_geometry(sphere)
-
-    # 3. Configurações de Renderização CRUCIAIS para Transparência da Malha
-    renderOpt.mesh_show_back_face = True # Vê o interior da malha
-    renderOpt.mesh_color_option = o3d.visualization.MeshColorOption.Color # Usa a cor definida
-
-    # 4. Outras opções
-    renderOpt.point_size = 2.0
-
-    vis.poll_events()
-    vis.update_renderer()
-
-    return vis, sphere
+    time.sleep(0.5)     # Animation speed
 
 
-def iterationCallback(params, points, vis, sphere):
-    xc, yc, zc, r = params
-    r = abs(r)
-    center = np.array([xc, yc, zc])
+# ============================================================
+# Create transparent sphere mesh
+# ============================================================
+def createTransparentSphere(center, radius):
+    radius = max(abs(radius), 1e-6)   # <--- PROTECTION AGAINST R <= 0
 
-    tmp = o3d.geometry.TriangleMesh.create_sphere(r, resolution=15)
-    tmp.compute_vertex_normals()
-    tmp.translate(center)
-
-    # COR VISÍVEL (SEM TRANSPARÊNCIA)
-    color = np.array([0.7, 0.8, 1.0])
-    colors = np.tile(color, (np.asarray(tmp.vertices).shape[0], 1))
-    tmp.vertex_colors = o3d.utility.Vector3dVector(colors)
-
-    sphere.vertices = tmp.vertices
-    sphere.triangles = tmp.triangles
-    sphere.vertex_normals = tmp.vertex_normals
-    sphere.triangle_normals = tmp.triangle_normals
-    sphere.vertex_colors = tmp.vertex_colors
-
-    vis.update_geometry(sphere)
-    vis.poll_events()
-    vis.update_renderer()
-
-    time.sleep(1)
+    mesh = o3d.geometry.TriangleMesh.create_sphere(radius, resolution=20)
+    mesh.compute_vertex_normals()
+    mesh.translate(center)
+    return mesh
 
 
-# -----------------------------------------
-# MAIN
-# -----------------------------------------
-def main():
+# ============================================================
+# Update the sphere in the GUI (runs on GUI thread)
+# ============================================================
+def updateSphereInGui(window, sceneWidget, sphereMesh):
+    sphereMaterial = createSphereMaterial()
 
-    # -----------------------------------------
-    # Load da point cloud
-    # -----------------------------------------
-    cloud = o3d.io.read_point_cloud("pcd_to_work/cloud_registered.pcd")
-    points = np.asarray(cloud.points)
+    def update():
+        if sceneWidget.scene.has_geometry("sphere"):
+            sceneWidget.scene.remove_geometry("sphere")
+        sceneWidget.scene.add_geometry("sphere", sphereMesh, sphereMaterial)
 
-    # -----------------------------------------
-    # First guess: centro e raio inicial
-    # -----------------------------------------
-    initialCenter = points.mean(axis=0)
-    initialRadius = np.max(np.linalg.norm(points - initialCenter, axis=1))
 
-    x0 = np.array([initialCenter[0],
-                   initialCenter[1],
-                   initialCenter[2],
-                   initialRadius])
+    # Update function in stanby until ir updates
+    gui.Application.instance.post_to_main_thread(window, update)
 
-    # -----------------------------------------
-    # Visualizador para animação
-    # -----------------------------------------
-    vis, sphere = initVisualizer(points)
 
-    # -----------------------------------------
-    # Constraints com partial
-    # -----------------------------------------
-    cons = ({
+# ============================================================
+# Material for transparent sphere
+# ============================================================
+def createSphereMaterial():
+    material = rendering.MaterialRecord()
+    material.shader = "defaultLitTransparency"
+    material.base_color = [1.0, 0.0, 0.0, 0.25]   # RGBA
+    return material
+
+
+# ============================================================
+# GUI setup (SceneWidget + Open3DScene)
+# ============================================================
+def configureViewport(window, pointCloud):
+    sceneWidget = gui.SceneWidget()
+    sceneWidget.scene = rendering.Open3DScene(window.renderer)
+
+    # Point cloud material
+    material = rendering.MaterialRecord()
+    material.shader = "defaultUnlit"
+
+    sceneWidget.scene.add_geometry("pointCloud", pointCloud, material)
+
+    bounds = pointCloud.get_axis_aligned_bounding_box()
+    sceneWidget.setup_camera(60.0, bounds, bounds.get_center())
+    sceneWidget.background_color = gui.Color(1, 1, 1)
+
+    window.add_child(sceneWidget)
+    return sceneWidget
+
+
+# ============================================================
+# Optimization thread (animation handled in callback)
+# ============================================================
+def optimizationThread(points, initialParams, window, sceneWidget):
+
+    # -------------------------------
+    # Build constraints
+    # -------------------------------
+    constraints = {
         "type": "ineq",
         "fun": partial(constraintFunction, points=points)
-    })
+    }
 
-    # -----------------------------------------
-    # Objective + callback com partial
-    # -----------------------------------------
-    wrappedCallback = partial(iterationCallback,
-                              points=points,
-                              vis=vis,
-                              sphere=sphere)
+    
+    # Build callback with partial
+    animatedCallback = partial(
+        iterationCallback,
+        window=window,
+        sceneWidget=sceneWidget,
+    )
 
-    # -----------------------------------------
-    # Minimização com animação
-    # -----------------------------------------
+    # ============================================================
+    # Run SLSQP
+    # ============================================================
     result = minimize(
         fun=objectiveFunction,
-        x0=x0,
+        x0=initialParams,
         method="SLSQP",
-        constraints=cons,
-        callback=wrappedCallback,
+        constraints=constraints,
+        callback=animatedCallback,
         options={"maxiter": 200, "ftol": 1e-12, "disp": True}
     )
 
-    # Fechar janela de animação
-    vis.destroy_window()
+    # Print results
+    finalCenter = np.array(result.x[:3])
+    finalRadius = abs(result.x[3])
 
-    # -----------------------------------------
-    # Resultados finais
-    # -----------------------------------------
-    xc, yc, zc, r = result.x
-    center = np.array([xc, yc, zc])
-    radius = abs(r)
-
-    print("\nCentro otimizado:", center)
-    print("Raio otimizado:", radius)
-
-    # -----------------------------------------
-    # Visualização final transparente REAL
-    # -----------------------------------------
-    sphereFinal = o3d.geometry.TriangleMesh.create_sphere(radius)
-    sphereFinal.translate(center)
-    sphereFinal.compute_vertex_normals()
-
-    material = o3d.visualization.rendering.MaterialRecord()
-    material.shader = "defaultLitTransparency"
-    material.base_color = [1, 0, 0, 0.25]
-
-    o3d.visualization.draw([
-        {"name": "cloud",  "geometry": cloud},
-        {"name": "sphere", "geometry": sphereFinal, "material": material}
-    ])
+    print("\nOptimization Complete")
+    print("Final Center:", finalCenter)
+    print("Final Radius:", finalRadius)
 
 
-# -----------------------------------------
-# Entry point
-# -----------------------------------------
+# ============================================================
+# MAIN
+# ============================================================
+def main():
+    # Load point cloud
+    pointCloud = o3d.io.read_point_cloud("pcd_to_work/cloud_registered.pcd")
+    pointsNp = np.asarray(pointCloud.points)
+
+    # Initial guess: center and radius
+    #center0 = pointsNp.mean(axis=0)
+    #radius0 = np.max(np.linalg.norm(pointsNp - center0, axis=1))
+    #initialParams = np.array([center0[0], center0[1], center0[2], radius0])
+
+    # Initialize GUI
+    app = gui.Application.instance
+    app.initialize()
+
+    window = app.create_window("Minimum Enclosing Sphere Optimizer", 1280, 800)
+    sceneWidget = configureViewport(window, pointCloud)
+
+    # Start optimization thread
+    thread = threading.Thread(
+        target=optimizationThread,
+        args=(pointsNp, np.zeros(4), window, sceneWidget),
+        daemon=True
+    )
+    thread.start()
+
+    # Run GUI loop
+    app.run()
+
+
 if __name__ == "__main__":
     main()
