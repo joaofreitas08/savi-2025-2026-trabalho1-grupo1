@@ -16,7 +16,6 @@ class CustomICP:
         # Initialize main ICP parameters
         # -----------------------------------------
         self.verbose = verbose                                  # print debug info if True
-        self.finalTransform = np.eye(4)                         # final 4x4 transformation matrix
         self.voxelSize = 0.01
         self.distanceThreshold = self.voxelSize * 1.5          # define the distanceThreshold
 
@@ -46,7 +45,7 @@ class CustomICP:
 
         # Define the pointSize
         renderOption = self.visualizer.get_render_option()
-        renderOption.point_size = 1.0    
+        renderOption.point_size = 2.0    
 
         # Camera Definitions
         view = self.visualizer.get_view_control()
@@ -172,21 +171,26 @@ class CustomICP:
     # Main ICP optimization loop
     # -----------------------------------------
     def run(self, sourceCloud, targetCloud, globalRegistrationTransformation):
+        # Downsample pointCLouds
+        sourceCloudDownsampled = sourceCloud.voxel_down_sample(self.voxelSize)
+        targetCloudDownsampled = targetCloud.voxel_down_sample(self.voxelSize)
+
+
         # Convert Open3D point clouds to NumPy arrays
-        sourcePoints = np.asarray(sourceCloud.points)
-        targetPoints = np.asarray(targetCloud.points)  # Target cloud stays fixed
+        sourcePoints = np.asarray(sourceCloudDownsampled.points)
+        targetPoints = np.asarray(targetCloudDownsampled.points)  # Target cloud stays fixed
 
         # Copy the first transformation given by globalRegistration
         firstTransformation = globalRegistrationTransformation.transformation.copy()
 
         # Compute the kdTree for the targetCloud   
-        self.kdTree = cKDTree(np.asarray(targetCloud.points))   
+        self.kdTree = cKDTree(np.asarray(targetCloudDownsampled.points))   
        
         # Transform the source cloud with the current transformation
         transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
 
         #Initialize the viewer
-        self.initVisualizer(targetCloud)
+        self.initVisualizer(targetCloudDownsampled)
 
 
         # Define objective (residual) function for least squares optimization
@@ -196,18 +200,17 @@ class CustomICP:
                 targetPoints=targetPoints,
         )
 
-        bounds = (
-            [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
-            [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
-        )
+        # bounds = (
+        #     [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
+        #     [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
+        # )
 
         # Solve for the incremental transformation using robust least squares
         residualResultLeastSquares = least_squares(
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
                 method='trf',                       # Trust Region Reflective method (supports robust loss)   
-                bounds = bounds,
-                ftol=1e-05,             
+                #bounds = bounds,           
                 loss='huber',                   
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
                 verbose=2,

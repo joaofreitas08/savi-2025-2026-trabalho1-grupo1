@@ -237,7 +237,7 @@ def main():
         help="Folder where the pointclouds images are.)")
     parser.add_argument('-outpcd', "--outputPointClouds", default='cloud_registered', type=str,
         help="Folder to save the pcd)")
-    parser.add_argument('-voxS', "--voxelSize", default= 0.04, type=float,
+    parser.add_argument('-voxS', "--voxelSize", default= 0.05, type=float,
         help="Voxel Size.)")
     
     args = vars(parser.parse_args())
