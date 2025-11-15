@@ -29,7 +29,7 @@ The heart of this project is a **fully custom ICP implementation**, featuring:
 
 ---
 
-## 📌 How to Run
+## How to Run
 
 ```bash
 python3 icp_optimization/main.py
@@ -39,7 +39,10 @@ python3 icp_optimization/main.py
 
 ## What you should expect
 Target cloud (fixed) → green
+
 Source cloud (moving) → red
+
+<td><img src="images\gif_icp_opt.gif" width="900"/></td>
 
 Below is an example showing the original clouds, global alignment, and final ICP refinement:
 
