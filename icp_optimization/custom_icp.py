@@ -16,8 +16,9 @@ class CustomICP:
         # Initialize main ICP parameters
         # -----------------------------------------
         self.verbose = verbose                                  # print debug info if True
-        self.voxelSize = 0.01
-        self.distanceThreshold = self.voxelSize * 1.5          # define the distanceThreshold
+        self.voxelSize = 0.05
+        self.distanceThreshold = self.voxelSize * 5         # define the distanceThreshold
+        self.distancefScale = self.voxelSize * 2   
 
 
     # -----------------------------------------
@@ -45,7 +46,7 @@ class CustomICP:
 
         # Define the pointSize
         renderOption = self.visualizer.get_render_option()
-        renderOption.point_size = 2.0    
+        renderOption.point_size = 3.0    
 
         # Camera Definitions
         view = self.visualizer.get_view_control()
@@ -65,6 +66,7 @@ class CustomICP:
         # Update
         self.visualizer.poll_events()
         self.visualizer.update_renderer()
+
 
         
     # -----------------------------------------
@@ -89,7 +91,7 @@ class CustomICP:
         self.visualizer.poll_events()
         self.visualizer.update_renderer()
 
-        time.sleep(0.01)
+        time.sleep(0.1)
 
 
     # -----------------------------------------
@@ -147,19 +149,13 @@ class CustomICP:
     # -----------------------------------------
     # Compute residuals between matched source and target points
     # -----------------------------------------
-    def objectiveFunction(self, parameters, transformedSourcePoints, targetPoints):
+    def objectiveFunction(self, parameters, transformedSourcePoints, matchedTargetPoints):
         
         # Convert optimization parameters (rX, rY, rZ, tX, tY, tZ) into a 4x4 incremental transformation matrix.
         deltaTransformation = self.smallTransform(parameters)  # 4x4 matrix
 
         # Apply the incremental transformation to the source points.
         transformedSourcePoints = self.transformPoints(transformedSourcePoints, deltaTransformation)  # (N, 3)
-
-        # Find nearest-neighbor correspondences (source → target)
-        sourceToTargetCorrespondencesIndex = self.sourceToTargetCorrespondencesIndex(transformedSourcePoints)
-
-        # Retrieve matched target points using the correspondence indices
-        matchedTargetPoints = targetPoints[sourceToTargetCorrespondencesIndex]
 
         # Compute residuals (differences) between transformed source points and their corresponding target points.
         differences = matchedTargetPoints - transformedSourcePoints   # (N, 3)
@@ -180,59 +176,85 @@ class CustomICP:
         sourcePoints = np.asarray(sourceCloudDownsampled.points)
         targetPoints = np.asarray(targetCloudDownsampled.points)  # Target cloud stays fixed
 
-        # Copy the first transformation given by globalRegistration
-        firstTransformation = globalRegistrationTransformation.transformation.copy()
-
         # Compute the kdTree for the targetCloud   
-        self.kdTree = cKDTree(np.asarray(targetCloudDownsampled.points))   
-       
-        # Transform the source cloud with the current transformation
-        transformedSourcePoints = self.transformPoints(sourcePoints, firstTransformation)
+        self.kdTree = cKDTree(np.asarray(targetCloudDownsampled.points)) 
+
+        # Copy the first transformation given by globalRegistration
+        currentTransformation = globalRegistrationTransformation.transformation.copy()
 
         #Initialize the viewer
         self.initVisualizer(targetCloudDownsampled)
 
+        self.maxIcpIterations = 30
+        self.icpConvergenceTolerance = 1e-12
 
-        # Define objective (residual) function for least squares optimization
-        objectiveFunction = partial(
-                self.objectiveFunction,
-                transformedSourcePoints=transformedSourcePoints,
-                targetPoints=targetPoints,
-        )
+        for iteration in range(self.maxIcpIterations):
+       
+            # Transform the source cloud with the current transformation
+            transformedSourcePoints = self.transformPoints(sourcePoints, currentTransformation)
 
-        # bounds = (
-        #     [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
-        #     [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
-        # )
+            # Find nearest-neighbor correspondences (source → target)
+            sourceToTargetCorrespondencesIndex = self.sourceToTargetCorrespondencesIndex(transformedSourcePoints)
 
-        # Solve for the incremental transformation using robust least squares
-        residualResultLeastSquares = least_squares(
-                objectiveFunction,
-                np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
-                method='trf',                       # Trust Region Reflective method (supports robust loss)   
-                #bounds = bounds,           
-                loss='huber',                   
-                f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
-                verbose=2,
-                callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging
-        )
+            # Retrieve matched target points using the correspondence indices
+            matchedTargetPoints = targetPoints[sourceToTargetCorrespondencesIndex]
+
+            distances = np.linalg.norm(matchedTargetPoints - transformedSourcePoints, axis=1)
+
+            # Create the mask
+            mask = distances < self.distanceThreshold
+
+            # Keep only inliers
+            transformedSourcePoints = transformedSourcePoints[mask]
+            matchedTargetPoints = matchedTargetPoints[mask]
+
+            # Define objective (residual) function for least squares optimization
+            objectiveFunction = partial(
+                    self.objectiveFunction,
+                    transformedSourcePoints=transformedSourcePoints,
+                    matchedTargetPoints=matchedTargetPoints,
+            )
+
+            # bounds = (
+            #     [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
+            #     [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
+            # )
+
+            # Solve for the incremental transformation using robust least squares
+            leastSquaresResult = least_squares(
+                    objectiveFunction,
+                    np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
+                    method='trf',                       # Trust Region Reflective method (supports robust loss)   
+                    #bounds = bounds,           
+                    loss='huber',                   
+                    f_scale=self.distancefScale,     # Scale defining inlier region for Huber loss
+                    verbose=2,
+                    callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging
+            )
+
+            deltaT = self.smallTransform(leastSquaresResult.x)
+
+            # ----------------------------------------------
+            # Step 4 — update pose
+            # ----------------------------------------------
+            newTransformation = currentTransformation @ deltaT 
+
+            # ----------------------------------------------
+            # Step 5 — Convergence check
+            # ----------------------------------------------
+            if np.linalg.norm(leastSquaresResult.x) < self.icpConvergenceTolerance:
+                if self.verbose:
+                    print(f"ICP converged at iteration {iteration}")
+                currentTransformation = newTransformation
+                break
+
+            currentTransformation = newTransformation
 
         # Close window when optimization ends
-        self.visualizer.destroy_window() 
+        self.visualizer.destroy_window()
 
-        # Compute RMSE (Root Mean Square Error) of residuals
-        rootMeanSquaredError = np.sqrt(np.mean(residualResultLeastSquares.fun ** 2))
+        # final residual
+        rMSE = np.sqrt(np.mean(leastSquaresResult.fun ** 2))
 
-        # Convert optimized parameters into a 4x4 transformation matrix
-        resultLeastSquaresTransformation = self.smallTransform(residualResultLeastSquares.x)
-
-        # Create the final transformation
-        finalTransformation = resultLeastSquaresTransformation @ firstTransformation
-
-
-        # Report iteration results
-        if self.verbose:
-            print(f"RMSE error = {rootMeanSquaredError:.6f}")
-
-        return finalTransformation, rootMeanSquaredError
-
+        return currentTransformation, rMSE
+         
