@@ -39,14 +39,14 @@ If you wish to use a different point cloud, simply replace the file inside:
 minimum_enclosing_sphere_optimization/pcd_to_work/
 ```
 
-## Output Example (Minimum Enclosing Sphere)
+## What you should Expect 
 
 <table> 
   <tr>
     <th>Cloud + Enclosing Sphere</th>
   </tr>
   <tr> 
-    <td><img src="images\output_cloud_with_sphere.png" width="600"/></td> 
+    <td><img src="images/spgheretogif-ezgif.com-video-to-gif-converter.gif" width="900"/></td> 
   </tr>
 </table>
 

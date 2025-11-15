@@ -66,8 +66,8 @@ Below is an example showing the original clouds, global alignment, and final cus
     <th>Custom ICP Registration</th>
   </tr>
   <tr>
-    <td><img src="images\registered.png" width="300"/></td>
-    <td><img src="images\imageregistered.png" width="300"/></td>
+    <td><img src="images\registered.png" width="450"/></td>
+    <td><img src="images\imageregistered.png" width="450"/></td>
   </tr>
 </table>
 
