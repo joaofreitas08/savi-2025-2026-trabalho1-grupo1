@@ -1,29 +1,60 @@
-# Point Cloud Registration (Global + ICP)
-This module performs **incremental registration** of point clouds.  
-It uses:
+# Point Cloud Registration (Global + Custom ICP)
 
-- **Global Registration** (RANSAC)
-- **Custom ICP refinement** (implemented with `scipy.optimize.least_squares`)
-- An **Open3D Visualization** of the incremental registration made by custom icp refinement
-- An **Open3D GUI** where you can toggle visibility and modify colors of:
+This project performs **incremental registration of 3D point clouds** using:
+
+- **Global Registration (RANSAC)**
+- **Custom ICP refinement** implemented from scratch using `scipy.optimize.least_squares`
+- A **real-time Open3D visualizer** showing each ICP iteration
+- An **interactive Open3D GUI** for toggling visibility and modifying colors of:
   - Original point clouds  
-  - Globally registered point clouds  
-  - Fully registered (ICP) point clouds  
+  - Globally registered clouds  
+  - Fully registered clouds  
 
-This tool provides full transparency of the registration pipeline, useful for debugging and analysis.
+The goal is to provide a **transparent, debuggable, and visually interpretable registration pipeline**, ideal for learning, experimentation, and analysis.
 
 ---
 
-## How to Run the Script
+## Project Highlights
 
-To run the registration using the default input folder:
+### Custom ICP (Main Contribution)
+
+The heart of this project is a **fully custom ICP implementation**, featuring:
+
+- Point-to-point ICP  
+- KD-Tree correspondence search  
+- Nonlinear optimization using SciPy's `least_squares` with Huber loss  
+- Gradual 3D pose updates (small rotation + translation steps)
+- Real-time visualization callback per iteration  
+
+
+---
+
+## 📌 How to Run
 
 ```bash
 python3 icp_optimization/main.py
 ```
-<td><img src="images/gif_icp_opt.gif" width="900"/></td>
+
 ---
+
 ## What you should expect
+Target cloud (fixed) → green
+Source cloud (moving) → red
+
+Below is an example showing the original clouds, global alignment, and final ICP refinement:
+
+<table>
+  <tr>
+    <th>Without Registration</th>
+    <th>Global Registration</th>
+    <th>ICP Registration</th>
+  </tr>
+  <tr>
+    <td><img src="images\2normalimages.png" width="300"/></td>
+    <td><img src="images\imagewithglobalregist.png" width="300"/></td>
+    <td><img src="images\imageregistered.png" width="300"/></td>
+  </tr>
+</table>
 
 
 
