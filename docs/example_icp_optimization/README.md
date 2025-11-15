@@ -42,7 +42,16 @@ Target cloud (fixed) → green
 
 Source cloud (moving) → red
 
-<td><img src="images\gif_icp_opt.gif" width="900"/></td>
+<table> 
+  <tr>
+    <th>ICP Iteration Visualization — Source Aligning to Target
+</th>
+  </tr>
+  <tr> 
+    <td><img src="images\gif_icp_opt.gif" width="900"/></td> 
+  </tr>
+</table>
+
 
 Below is an example showing the original clouds, global alignment, and final custom ICP refinement:
 
