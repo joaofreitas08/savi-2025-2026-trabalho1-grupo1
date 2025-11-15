@@ -39,37 +39,33 @@ If you want to change the input folder, ouput folder or voxel size, you can use:
 python3 icp_tutorial/main.py \
     -ifd image_to_cloud/output_clouds \
     -outpcd icp_tutorial/cloud_registered \
-    -voxS 0.04
+    -voxS 0.05
 ```
 
-## Input Example (Point Clouds)
+## What you should expect
 
-Below we show the two input point clouds before registration:
+Target cloud (fixed) → green
 
-<table>
-  <tr>
-    <th>Input Cloud 0</th>
-    <th>Input Cloud 1</th>
-  </tr>
-  <tr>
-    <td><img src="images/input_pointClouds/pointcloud0_original.png" width="450"/></td>
-    <td><img src="images/input_pointClouds/pointcloud1_original.png" width="450"/></td>
-  </tr>
-</table>
+Source cloud (moving) → red
 
 These clouds are in different poses and must be aligned into a common reference frame.
 
-
-## Output Example (Registered Cloud)
-
-After running the script, both clouds are aligned:
+Below is an example showing the original clouds, global alignment, and final open3D ICP refinement:
 
 <table>
   <tr>
-    <th>Accumulated Registered Cloud</th>
+    <th>Without Registration</th>
+    <th>Open3D Global Registration</th>
+    <th>Open3D ICP Registration</th>
   </tr>
   <tr>
-    <td><img src="images/output_registered/cloud_registered.png" width="600"/></td>
+    <td><img src="images\2pcds.png" width="300"/></td>
+    <td><img src="images\globalregist.png" width="300"/></td>
+    <td><img src="images\registered.png" width="300"/></td>
   </tr>
 </table>
+
+
+
+
 

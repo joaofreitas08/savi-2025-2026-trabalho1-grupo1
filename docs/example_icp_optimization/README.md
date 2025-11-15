@@ -42,15 +42,15 @@ Target cloud (fixed) → green
 
 Source cloud (moving) → red
 
-<td><img src="images\gif_icp_opt.gif" width="1000"/></td>
+<td><img src="images\gif_icp_opt.gif" width="900"/></td>
 
-Below is an example showing the original clouds, global alignment, and final ICP refinement:
+Below is an example showing the original clouds, global alignment, and final custom ICP refinement:
 
 <table>
   <tr>
     <th>Without Registration</th>
-    <th>Global Registration</th>
-    <th>ICP Registration</th>
+    <th>Open 3D Global Registration</th>
+    <th>Custom ICP Registration</th>
   </tr>
   <tr>
     <td><img src="images\2normalimages.png" width="300"/></td>
@@ -59,5 +59,16 @@ Below is an example showing the original clouds, global alignment, and final ICP
   </tr>
 </table>
 
+## Comparison Open3D ICP and custom ICP
+<table>
+  <tr>
+    <th>Open3D ICP Registration</th>
+    <th>Custom ICP Registration</th>
+  </tr>
+  <tr>
+    <td><img src="images\registered.png" width="300"/></td>
+    <td><img src="images\imageregistered.png" width="300"/></td>
+  </tr>
+</table>
 
 

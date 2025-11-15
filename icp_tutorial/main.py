@@ -49,6 +49,9 @@ def onColorChangeGlobalRegistrationDebug(viewport, newColor, idx):
     material.shader = "defaultUnlit"
     material.base_color = (newColor.red, newColor.green, newColor.blue, 1.0)
 
+    # Update material in viewport
+    viewport.scene.modify_geometry_material(cloudName, material)
+
 def onColorChangeRegistrationDebug(viewport, newColor, idx):
     # For registered Cloud
     cloudName = f"cloud_registered_{idx}"
@@ -251,7 +254,7 @@ def main():
         help="Folder where the pointclouds images are.)")
     parser.add_argument('-outpcd', "--outputPointClouds", default='cloud_registered', type=str,
         help="Folder where the rgb images are.)")
-    parser.add_argument('-voxS', "--voxelSize", default= 0.04, type=float,
+    parser.add_argument('-voxS', "--voxelSize", default= 0.05, type=float,
         help="Voxel Size.)")
     
     args = vars(parser.parse_args())
