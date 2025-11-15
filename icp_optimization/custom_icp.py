@@ -17,8 +17,8 @@ class CustomICP:
         # -----------------------------------------
         self.verbose = verbose                                  # print debug info if True
         self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 5         # define the distanceThreshold
-        self.distancefScale = self.voxelSize * 2   
+        self.distanceThreshold = self.voxelSize * 1.5        # define the distanceThreshold
+        self.distancefScale = self.voxelSize * 0.5  
 
 
     # -----------------------------------------
