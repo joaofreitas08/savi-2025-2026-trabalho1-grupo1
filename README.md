@@ -12,7 +12,7 @@ This assignment is divided into **four tasks**, each addressing a different stag
 Converts an RGB image and its corresponding depth image into a 3D point cloud.
 For more details, check [these example](docs/example_image_to_cloud).
 
-### 2. ICP tutotial from Open3D 
+### 2. ICP tutorial from Open3D 
 Uses Open3D’s built-in ICP (Iterative Closest Point) to align multiple point clouds.
 For more details, check [these example](docs/example_icp_tutorial).
 

@@ -29,7 +29,7 @@ class CustomICP:
         self.visualizer = o3d.visualization.Visualizer()
 
         # Create the visualizer window
-        self.visualizer.create_window("ICP Animation", width=800, height=600)
+        self.visualizer.create_window("ICP Animation", width=1500, height=800) #800/600
 
         # Create the source pointCloud to update
         self.sourceVisualization = o3d.geometry.PointCloud()
@@ -61,7 +61,7 @@ class CustomICP:
         view.set_front([0, 0, -1])  
         view.set_up([0, -1, 0])    
 
-        view.set_zoom(0.5)    
+        view.set_zoom(0.4)    
 
         # Update
         self.visualizer.poll_events()
@@ -107,36 +107,28 @@ class CustomICP:
         # Return transformed 3D points (N, 3)
         return transformedHomogeneous[:, :3]
 
-    
     # -----------------------------------------
-    # Convert 6 motion parameters into a 4x4 transformation
+    # Convert 6 motion parameters into a 4×4 SE(3) transformation matrix
     # -----------------------------------------
     @staticmethod
     def smallTransform(parameters):
         rX, rY, rZ, tX, tY, tZ = parameters
 
-        # Build rotation matrices
-        rotationX = np.array([
-            [1, 0, 0],
-            [0, np.cos(rX), -np.sin(rX)],
-            [0, np.sin(rX),  np.cos(rX)]
-        ])
-        rotationY = np.array([
-            [np.cos(rY), 0, np.sin(rY)],
-            [0, 1, 0],
-            [-np.sin(rY), 0, np.cos(rY)]
-        ])
-        rotationZ = np.array([
-            [np.cos(rZ), -np.sin(rZ), 0],
-            [np.sin(rZ),  np.cos(rZ), 0],
-            [0, 0, 1]
-        ])
+        # 1. Extract the rotation angles (in radians)
+        #    These represent small rotations around X, Y, Z
+        rotation_angles = [rX, rY, rZ]
 
-        # Combine rotations (Z-Y-X) and add translation
-        combinedRotation = rotationZ @ rotationY @ rotationX
+        # 2. Convert Euler angles into a rotation matrix
+        #    Your original order (Rz * Ry * Rx) corresponds to intrinsic 'zyx'
+        rotation = R.from_euler('zyx', rotation_angles)
+
+        # 3. Get the 3×3 rotation matrix
+        combinedRotation = rotation.as_matrix()
+
+        # 4. Construct the full 4×4 transformation matrix (SE3)
         transformationMatrix = np.eye(4)
-        transformationMatrix[:3, :3] = combinedRotation
-        transformationMatrix[:3, 3] = [tX, tY, tZ]
+        transformationMatrix[:3, :3] = combinedRotation     # rotation block
+        transformationMatrix[:3, 3] = [tX, tY, tZ]          # translation vector
 
         return transformationMatrix
 
@@ -204,13 +196,19 @@ class CustomICP:
                 targetPoints=targetPoints,
         )
 
+        bounds = (
+            [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
+            [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
+        )
+
         # Solve for the incremental transformation using robust least squares
         residualResultLeastSquares = least_squares(
                 objectiveFunction,
                 np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
-                method='trf',                       # Trust Region Reflective method (supports robust loss)
-                ftol=1e-05,                         #e-5
-                loss='huber',                       # Robust loss function to reduce outlier influence // linear rho(z) = z if z <= 1 else 2*z**0.5 - 1 quatratic
+                method='trf',                       # Trust Region Reflective method (supports robust loss)   
+                bounds = bounds,
+                ftol=1e-05,             
+                loss='huber',                   
                 f_scale=self.distanceThreshold,     # Scale defining inlier region for Huber loss
                 verbose=2,
                 callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging

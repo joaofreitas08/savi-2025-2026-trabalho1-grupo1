@@ -222,7 +222,7 @@ def calculateGlobalRegistrationTransformation(accumulatedPointCloudDownsampled, 
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(ransacDistanceThreshold)
             ], 
-            o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence \\\\put 200
+            o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)) # iteration limit and confidence 
 
     return globalRegistrationTransformation
 
