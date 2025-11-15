@@ -46,7 +46,7 @@ class CustomICP:
 
         # Define the pointSize
         renderOption = self.visualizer.get_render_option()
-        renderOption.point_size = 3.0    
+        renderOption.point_size = 4.0    
 
         # Camera Definitions
         view = self.visualizer.get_view_control()
@@ -186,7 +186,7 @@ class CustomICP:
         self.initVisualizer(targetCloudDownsampled)
 
         self.maxIcpIterations = 30
-        self.icpConvergenceTolerance = 1e-12
+        self.icpConvergenceTolerance = 1e-8
 
         for iteration in range(self.maxIcpIterations):
        

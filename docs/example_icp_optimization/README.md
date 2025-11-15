@@ -21,7 +21,7 @@ To run the registration using the default input folder:
 ```bash
 python3 icp_optimization/main.py
 ```
-
+<td><img src="images/gif_icp_opt.gif" width="900"/></td>
 ---
 ## What you should expect
 
