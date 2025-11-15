@@ -42,7 +42,7 @@ Target cloud (fixed) → green
 
 Source cloud (moving) → red
 
-<td><img src="images\gif_icp_opt.gif" width="1080"/></td>
+<td><img src="images\gif_icp_opt.gif" width="1000"/></td>
 
 Below is an example showing the original clouds, global alignment, and final ICP refinement:
 
