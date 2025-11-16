@@ -125,7 +125,7 @@ def iterationCallback(params, window, viewport):
 # Create transparent sphere mesh
 # ------------------------------------------------------------
 def createTransparentSphere(center, radius):
-    radius = max(abs(radius), 1e-6)   #some values given by the SLSQP callback re inappropriate to make a sphere (raio nunca é negativo nem 0)
+    radius = max(abs(radius), 1e-6)   #some values given by the SLSQP callback re inappropriate to make a sphere (radius nver negative or 0)
 
     mesh = o3d.geometry.TriangleMesh.create_sphere(radius, resolution=20)
     mesh.compute_vertex_normals()

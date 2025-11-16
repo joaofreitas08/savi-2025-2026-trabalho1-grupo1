@@ -9,22 +9,25 @@ import time
 
 
 class CustomICP:
-    """Simplified Point-to-Point ICP implementation using SciPy least_squares."""
-
+    # -----------------------------------------
+    # Initialize Class
+    # -----------------------------------------
     def __init__(self, verbose=True):
-        # -----------------------------------------
+
         # Initialize main ICP parameters
-        # -----------------------------------------
         self.verbose = verbose                                  # print debug info if True
-        self.voxelSize = 0.05
-        self.distanceThreshold = self.voxelSize * 1.5        # define the distanceThreshold
-        self.distancefScale = self.voxelSize * 0.5  
+        self.voxelSize = 0.05                                   # define the vexelSize
+        self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
+        self.distancefScale = self.voxelSize * 0.5              # define the fScale for huber loss
+        self.maxIcpIterations = 100                             # define the number of max iterations
+        self.icpConvergenceTolerance = 1e-6                     # define the tolerance for icp
 
 
     # -----------------------------------------
     # Visualzer for each Iteration 
     # -----------------------------------------
     def initVisualizer(self, targetCloud):
+
         # Create the visualizer 
         self.visualizer = o3d.visualization.Visualizer()
 
@@ -67,14 +70,14 @@ class CustomICP:
         self.visualizer.poll_events()
         self.visualizer.update_renderer()
 
-
-        
+   
     # -----------------------------------------
     # Add a callback that applies the current ICP update and renders
     # -----------------------------------------
     def iterationCallback(self, x, transformedSourcePoints):
+
         # X is the vector of updated values
-        transformation = self.smallTransform(x)
+        transformation = self.transformationMatrix(x)
 
         # Update point cloud with the values
         updatedPointCloud = self.transformPoints(transformedSourcePoints, transformation)
@@ -99,6 +102,7 @@ class CustomICP:
     # -----------------------------------------
     @staticmethod
     def transformPoints(sourcePoints, transformation):
+
         # Convert points to homogeneous coordinates (N, 4)
         pointsHomogeneous = np.hstack((sourcePoints, np.ones((sourcePoints.shape[0], 1))))
 
@@ -108,25 +112,26 @@ class CustomICP:
         # Return transformed 3D points (N, 3)
         return transformedHomogeneous[:, :3]
 
+
     # -----------------------------------------
-    # Convert 6 motion parameters into a 4×4 SE(3) transformation matrix
+    # Convert 6 motion parameters into a 4×4 transformation matrix
     # -----------------------------------------
     @staticmethod
-    def smallTransform(parameters):
+    def transformationMatrix(parameters):
+
         rX, rY, rZ, tX, tY, tZ = parameters
 
-        # 1. Extract the rotation angles (in radians)
-        #    These represent small rotations around X, Y, Z
+        # Extract the rotation angles (in radians)
+        # These represent small rotations around X, Y, Z
         rotation_angles = [rX, rY, rZ]
 
-        # 2. Convert Euler angles into a rotation matrix
-        #    Your original order (Rz * Ry * Rx) corresponds to intrinsic 'zyx'
-        rotation = R.from_euler('zyx', rotation_angles)
+        # Convert Euler angles into a rotation matrix
+        rotation = R.from_euler('xyz', rotation_angles)
 
-        # 3. Get the 3×3 rotation matrix
+        # Get the 3×3 rotation matrix
         combinedRotation = rotation.as_matrix()
 
-        # 4. Construct the full 4×4 transformation matrix (SE3)
+        # Construct the full 4×4 transformation matrix
         transformationMatrix = np.eye(4)
         transformationMatrix[:3, :3] = combinedRotation     # rotation block
         transformationMatrix[:3, 3] = [tX, tY, tZ]          # translation vector
@@ -138,6 +143,7 @@ class CustomICP:
     # Find nearest-neighbor correspondences using a KDTree
     # -----------------------------------------
     def sourceToTargetCorrespondencesIndex(self, sourceCloud):
+
         # Query the precomputed KDTree of the target cloud.
         # For each point in the source cloud, find the index of the closest point in the target cloud.    
         _, sourceToTargetCorrespondencesIndex = self.kdTree.query(sourceCloud, k=1)
@@ -152,7 +158,7 @@ class CustomICP:
     def objectiveFunction(self, parameters, transformedSourcePoints, matchedTargetPoints):
         
         # Convert optimization parameters (rX, rY, rZ, tX, tY, tZ) into a 4x4 incremental transformation matrix.
-        deltaTransformation = self.smallTransform(parameters)  # 4x4 matrix
+        deltaTransformation = self.transformationMatrix(parameters)  # 4x4 matrix
 
         # Apply the incremental transformation to the source points.
         transformedSourcePoints = self.transformPoints(transformedSourcePoints, deltaTransformation)  # (N, 3)
@@ -163,14 +169,15 @@ class CustomICP:
         # Flatten the residual matrix into a 1D array (required by scipy.optimize.least_squares).
         return differences.ravel()
 
+
     # -----------------------------------------
     # Main ICP optimization loop
     # -----------------------------------------
     def run(self, sourceCloud, targetCloud, globalRegistrationTransformation):
+
         # Downsample pointCLouds
         sourceCloudDownsampled = sourceCloud.voxel_down_sample(self.voxelSize)
         targetCloudDownsampled = targetCloud.voxel_down_sample(self.voxelSize)
-
 
         # Convert Open3D point clouds to NumPy arrays
         sourcePoints = np.asarray(sourceCloudDownsampled.points)
@@ -185,26 +192,27 @@ class CustomICP:
         #Initialize the viewer
         self.initVisualizer(targetCloudDownsampled)
 
-        self.maxIcpIterations = 30
-        self.icpConvergenceTolerance = 1e-8
-
+        # Loop for (maxICPIterations)
         for iteration in range(self.maxIcpIterations):
        
             # Transform the source cloud with the current transformation
             transformedSourcePoints = self.transformPoints(sourcePoints, currentTransformation)
 
-            # Find nearest-neighbor correspondences (source → target)
+            # Find nearest-neighbor correspondences (source to target)
             sourceToTargetCorrespondencesIndex = self.sourceToTargetCorrespondencesIndex(transformedSourcePoints)
 
             # Retrieve matched target points using the correspondence indices
             matchedTargetPoints = targetPoints[sourceToTargetCorrespondencesIndex]
 
+            # Calculate distances to apply mask
             distances = np.linalg.norm(matchedTargetPoints - transformedSourcePoints, axis=1)
 
             # Create the mask
             mask = distances < self.distanceThreshold
 
             # Keep only inliers
+            # When rejecting an outlier, we must remove the entire pair;
+            # otherwise source and target would become misaligned (different sizes or wrong point pairs).
             transformedSourcePoints = transformedSourcePoints[mask]
             matchedTargetPoints = matchedTargetPoints[mask]
 
@@ -215,46 +223,40 @@ class CustomICP:
                     matchedTargetPoints=matchedTargetPoints,
             )
 
-            # bounds = (
-            #     [-0.2, -0.2, -0.2, -0.1, -0.1, -0.1],   # lower bounds
-            #     [ 0.2,  0.2,  0.2,  0.1,  0.1,  0.1]    # upper bounds
-            # )
-
             # Solve for the incremental transformation using robust least squares
             leastSquaresResult = least_squares(
                     objectiveFunction,
-                    np.zeros(6),                        # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
-                    method='trf',                       # Trust Region Reflective method (supports robust loss)   
-                    #bounds = bounds,           
-                    loss='huber',                   
-                    f_scale=self.distancefScale,     # Scale defining inlier region for Huber loss
-                    verbose=2,
-                    callback= partial(self.iterationCallback, transformedSourcePoints=transformedSourcePoints)                      # Internal solver output for debugging
+                    np.zeros(6),                                                                # Initial parameters: [rX, rY, rZ, tX, tY, tZ]
+                    method='trf',                                                               # Trust Region Reflective method (supports robust loss)           
+                    loss='huber',                                                               # Huber loss 
+                    f_scale=self.distancefScale,                                                # Scale defining inlier region for Huber loss
+                    verbose=0,
+                    callback= partial(self.iterationCallback, 
+                                      transformedSourcePoints=transformedSourcePoints)          # Internal solver output for visualization and debug
             )
 
-            deltaT = self.smallTransform(leastSquaresResult.x)
+            deltaTransformation = self.transformationMatrix(leastSquaresResult.x)
 
-            # ----------------------------------------------
-            # Step 4 — update pose
-            # ----------------------------------------------
-            newTransformation = currentTransformation @ deltaT 
+            # Update pose
+            currentTransformation = deltaTransformation @ currentTransformation
+            
+            print(f"Iteration {iteration}")
 
-            # ----------------------------------------------
-            # Step 5 — Convergence check
-            # ----------------------------------------------
+            # Convergence check
+            # leastSquaresResult.x = if the values form leastsquares given parameters < defined tolerence break
             if np.linalg.norm(leastSquaresResult.x) < self.icpConvergenceTolerance:
                 if self.verbose:
                     print(f"ICP converged at iteration {iteration}")
-                currentTransformation = newTransformation
                 break
-
-            currentTransformation = newTransformation
 
         # Close window when optimization ends
         self.visualizer.destroy_window()
 
-        # final residual
-        rMSE = np.sqrt(np.mean(leastSquaresResult.fun ** 2))
+        #print(leastSquaresResult.fun)
+        # Final RMSE    
+        residuals = leastSquaresResult.fun.reshape(-1, 3)  # (N, 3)
+        rootMeanSquaredError = np.sqrt(np.mean(np.sum(residuals**2, axis=1)))
 
-        return currentTransformation, rMSE
+
+        return currentTransformation, rootMeanSquaredError
          
