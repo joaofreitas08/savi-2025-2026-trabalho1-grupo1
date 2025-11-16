@@ -243,7 +243,7 @@ class CustomICP:
             print(f"Iteration {iteration}")
 
             # Convergence check
-            # leastSquaresResult.x = if the values form leastsquares given parameters < defined tolerence break
+            # leastSquaresResult.x = if the euclidian norm of the values form leastsquares given parameters < defined tolerence break
             if np.linalg.norm(leastSquaresResult.x) < self.icpConvergenceTolerance:
                 if self.verbose:
                     print(f"ICP converged at iteration {iteration}")
