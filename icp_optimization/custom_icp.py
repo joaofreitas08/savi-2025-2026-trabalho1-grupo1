@@ -254,8 +254,7 @@ class CustomICP:
 
         #print(leastSquaresResult.fun)
         # Final RMSE    
-        residuals = leastSquaresResult.fun.reshape(-1, 3)  # (N, 3)
-        rootMeanSquaredError = np.sqrt(np.mean(np.sum(residuals**2, axis=1)))
+        rootMeanSquaredError = np.sqrt(np.mean(leastSquaresResult.fun ** 2))
 
 
         return currentTransformation, rootMeanSquaredError
