@@ -20,7 +20,7 @@ class CustomICP:
         self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
         self.distancefScale = self.voxelSize * 0.5              # define the fScale for huber loss
         self.maxIcpIterations = 100                             # define the number of max iterations
-        self.icpConvergenceTolerance = 1e-6                     # define the tolerance for icp
+        self.icpConvergenceTolerance = 1e-5                     # define the tolerance for icp
 
 
     # -----------------------------------------
@@ -167,6 +167,7 @@ class CustomICP:
         differences = matchedTargetPoints - transformedSourcePoints   # (N, 3)
 
         # Flatten the residual matrix into a 1D array (required by scipy.optimize.least_squares).
+        # Returning only distances loses directional error information, so the optimizer cannot determine how each point should move in x, y, z.
         return differences.ravel()
 
 
