@@ -17,8 +17,8 @@ class CustomICP:
         # Initialize main ICP parameters
         self.verbose = verbose                                  # print debug info if True
         self.voxelSize = 0.05                                   # define the vexelSize
-        self.distanceThreshold = self.voxelSize * 1.5           # define the distanceThreshold
-        self.distancefScale = self.voxelSize * 0.5              # define the fScale for huber loss
+        self.distanceThreshold = self.voxelSize * 3             # define the distanceThreshold
+        self.distancefScale = self.voxelSize * 1                # define the fScale for huber loss
         self.maxIcpIterations = 100                             # define the number of max iterations
         self.icpConvergenceTolerance = 1e-5                     # define the tolerance for icp
 
